@@ -9,14 +9,14 @@
 
 /* === Forward declarations of sensor drivers === */
 extern i_temperature_sensor_t MCU_TemperatureSensor;
-// extern i_temperature_sensor_t PCB_TemperatureSensor;
+extern i_temperature_sensor_t PCB_TemperatureSensor;
 // extern i_temperature_sensor_t ESC_TemperatureSensor;
 // extern i_temperature_sensor_t Motor_TemperatureSensor;
 
 /* === Internal table of all sensor drivers === */
 static i_temperature_sensor_t* sensor_drivers[] = {
     [TEMP_MCU]   = &MCU_TemperatureSensor,
-    // [TEMP_PCB]   = &PCB_TemperatureSensor,
+    [TEMP_PCB]   = &PCB_TemperatureSensor,
     // [TEMP_ESC]   = &ESC_TemperatureSensor,
     // [TEMP_MOTOR] = &Motor_TemperatureSensor
 };

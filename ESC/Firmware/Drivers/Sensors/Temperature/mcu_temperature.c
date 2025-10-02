@@ -10,24 +10,19 @@
 #include "adc.h"
 #include <stdbool.h>
 
-/* === External handles from CubeMX === */
-extern ADC_HandleTypeDef hadc1;
-extern TIM_HandleTypeDef htim7;
-
 /* === Internal cache === */
 static float last_temperature = 0.0f;
 static bool  valid = false;
 
 /* === Forward declarations === */
 static bool MCU_Init(void);
-static bool MCU_Read(temperature_sensor_id_t id, float* temp_value);
 static void MCU_Update(void);
 static void MCU_Calibrate(void);
 
 /* === Global driver instance === */
 i_temperature_sensor_t MCU_TemperatureSensor = {
     .init      = MCU_Init,
-    .read      = MCU_Read,
+    .read      = NULL,
     .update    = MCU_Update,
     .calibrate = MCU_Calibrate
 };
@@ -47,27 +42,6 @@ static bool MCU_Init(void)
     valid = false;
     last_temperature = 0.0f;
 
-    /* Start TIM7 timer (triggers ADC conversions) */
-    HAL_TIM_Base_Start(&htim7);
-
-    /* Start ADC in interrupt mode */
-    HAL_ADC_Start_IT(&hadc1);
-
-    return true;
-}
-
-/**
- * @brief Read the last cached temperature.
- */
-static bool MCU_Read(temperature_sensor_id_t id, float* temp_value)
-{
-    if (id != TEMP_MCU || temp_value == NULL)
-        return false;
-
-    if (!valid)
-        return false; // No valid measurement yet
-
-    *temp_value = last_temperature;
     return true;
 }
 

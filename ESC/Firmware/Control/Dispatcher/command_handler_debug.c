@@ -141,14 +141,17 @@ static void dispatch_system_command(const protocol_msg_t* msg)
             uint32_t freq_mhz = Service_GetSysFrequencyMHz();  // Get system clock frequency in MHz
 
             char mcu_temp[64];
+            char pcb_temp[64];
 
             Service_FloatToString(Service_GetMCU_Temp(), mcu_temp, 2);
+            Service_FloatToString(Service_GetPCB_Temp(), pcb_temp, 2);
             
             // Log system status to the debug terminal
             LOG_INFO("System status:");
             LOG_INFO("System frequency: %lu MHz", freq_mhz);
             LOG_INFO("System running time: %s", time_str);
             LOG_INFO("System MCU Temperature: %s", mcu_temp);
+            LOG_INFO("System PCB Temperature: %s", pcb_temp);
             break;
         }
 

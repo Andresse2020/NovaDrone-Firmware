@@ -6,6 +6,7 @@
 #include "fdcan.h"
 #include "adc.h"
 #include "tim.h"
+#include "dma.h"
 
 /**
  * @brief Initialize system core (HAL, clock)
@@ -44,14 +45,18 @@ i_status_t Driver_Init(void)
     // Sets pin modes, speeds, pull-ups/downs, and initial output levels.
     MX_GPIO_Init();
 
+    // Enable DMA controller clock
+    MX_DMA_Init();
+
     // Initialize UART2 for communication (e.g., debug or data transfer).
     MX_USART2_UART_Init();
 
     // Initialize FDCAN2 interface for CAN communication.
     MX_FDCAN2_Init();
 
-    // Initialize ADC1 for analog input readings (e.g., sensors).
+    // Initialize ADC1 and ADC2 for analog input readings (e.g., sensors).
     MX_ADC1_Init();
+    MX_ADC2_Init();
 
     // Initialize TIM7 timer (used for periodic interrupts or timing functions).
     MX_TIM7_Init();

@@ -167,6 +167,16 @@ void service_release_comm_test(void);
 float Service_GetMCU_Temp(void);
 
 
+/**
+ * @brief Get the latest PCB temperature value
+ * @return Current PCB temperature in °C
+ *
+ * @details Provides the most recently converted and processed
+ *          PCB temperature measurement for external modules.
+ */
+float Service_GetPCB_Temp(void);
+
+
 
 
 /* -------------------------------------------------------------------------- */

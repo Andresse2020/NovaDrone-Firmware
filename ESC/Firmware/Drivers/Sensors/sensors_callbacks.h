@@ -55,6 +55,16 @@ void TemperatureSensorManager_OnNewSample(temperature_sensor_id_t id, float valu
  */
 void MCU_Temperature_ADC_CallBack(ADC_HandleTypeDef* hadc);
 
+/**
+ * @brief Callback for PCB temperature sensor
+ * @param value Raw ADC value of the PCB temperature channel
+ *
+ * @details Called after ADC conversion to process the PCB temperature measurement.
+ *          Typically used to convert the raw value into °C and update monitoring logic.
+ */
+void PCB_Temperature_ADC_CallBack(uint16_t value);
+
+
 
 #ifdef __cplusplus
 }

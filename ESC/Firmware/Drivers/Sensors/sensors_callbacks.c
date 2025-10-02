@@ -12,6 +12,9 @@
  */
 
 #include "sensors_callbacks.h"
+#include "adc.h"
+#include "gpio.h"
+#include "tim.h"
 
 /* === Private Constants === */
 #define SENSORS_CALLBACKS_VERSION_MAJOR    1
@@ -19,6 +22,15 @@
 
 /* === Private Variables === */
 static bool callbacks_initialized = false;
+
+typedef enum{
+    PCB_SENS_VALUE = 0,
+    VBUS_VALUE
+}ADC2_channel_t;
+
+/* === Public Variables === */
+#define ADC2_CHANNELS 2   // Number of channel in the sequence
+volatile uint16_t adc2_buffer[ADC2_CHANNELS] = {0}; // DMA Buffer
 
 /* ============================================================================ */
 /* === Public Functions                                                     === */
@@ -34,9 +46,34 @@ static bool callbacks_initialized = false;
 bool SensorsCallbacks_Init(void)
 {
     if (callbacks_initialized) {
-        return false; // Already initialized
+        return false;
+    }
+
+    // 1. Calibrate ADC1 and ADC2
+    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) {
+        Error_Handler();
     }
     
+    if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED) != HAL_OK) {
+        Error_Handler();
+    }
+
+    // 2. Start the timer BEFORE starting the ADCs
+    HAL_TIM_Base_Start(&htim7);
+    
+    // 3. Short delay to stabilize the timer
+    HAL_Delay(10);
+
+    // 4. Start ADC2 with DMA
+    if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*) adc2_buffer, ADC2_CHANNELS) != HAL_OK) {
+        Error_Handler();
+    }
+
+    HAL_Delay(10);
+
+    // 5. Start ADC1 (interrupt mode)
+    HAL_ADC_Start_IT(&hadc1);
+
     callbacks_initialized = true;
     return true;
 }
@@ -75,8 +112,8 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
             MCU_Temperature_ADC_CallBack(hadc);
             break;
             
-        case ADC3_BASE:
-            /* Future: Voltage_ADC_CallBack(hadc); */
+        case ADC2_BASE:
+            PCB_Temperature_ADC_CallBack(adc2_buffer[PCB_SENS_VALUE]);
             break;
             
         default:
