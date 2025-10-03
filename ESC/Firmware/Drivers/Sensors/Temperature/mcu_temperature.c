@@ -83,15 +83,10 @@ void MCU_TemperatureSensor_OnNewSample(uint32_t raw_adc)
 /**
  * @brief HAL ADC conversion complete callback
  */
-void MCU_Temperature_ADC_CallBack(ADC_HandleTypeDef* hadc)
+void MCU_Temperature_ADC_CallBack(uint16_t value)
 {
-    if (hadc->Instance != ADC1) return;
-
-    // Read ADC value
-    uint32_t raw = HAL_ADC_GetValue(hadc);
-
     // Call MCU driver
-    MCU_TemperatureSensor_OnNewSample(raw);
+    MCU_TemperatureSensor_OnNewSample(value);
 
     // Update manager cache
     TemperatureSensorManager_OnNewSample(TEMP_MCU, last_temperature);

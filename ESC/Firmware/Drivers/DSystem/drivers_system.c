@@ -57,6 +57,7 @@ i_status_t Driver_Init(void)
     // Initialize ADC1 and ADC2 for analog input readings (e.g., sensors).
     MX_ADC1_Init();
     MX_ADC2_Init();
+    MX_ADC3_Init();
 
     // Initialize TIM7 timer (used for periodic interrupts or timing functions).
     MX_TIM7_Init();

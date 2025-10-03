@@ -9,14 +9,14 @@
 
 /* === Forward declarations of sensor drivers === */
 extern i_voltage_sensor_t VoltageBusSensor;
-// extern i_voltage_sensor_t Voltage3V3Sensor;
-// extern i_voltage_sensor_t Voltage12VSensor;
+extern i_voltage_sensor_t Voltage3V3Sensor;
+extern i_voltage_sensor_t Voltage12VSensor;
 
 /* === Internal table of all sensor drivers === */
 static i_voltage_sensor_t* voltage_drivers[] = {
     [VOLTAGE_BUS] = &VoltageBusSensor,
-    // [VOLTAGE_3V3] = &Voltage3V3Sensor,
-    // [VOLTAGE_12V] = &Voltage12VSensor
+    [VOLTAGE_3V3] = &Voltage3V3Sensor,
+    [VOLTAGE_12V] = &Voltage12VSensor
 };
 
 #define VOLTAGE_SENSOR_COUNT (sizeof(voltage_drivers)/sizeof(voltage_drivers[0]))

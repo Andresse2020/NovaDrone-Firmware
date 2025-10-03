@@ -28,9 +28,17 @@ typedef enum{
     VBUS_VALUE
 }ADC2_channel_t;
 
+typedef enum{
+    MCU_SENS_VALUE = 0,
+    V3v3_VALUE,
+}ADC1_channel_t;
+
 /* === Public Variables === */
 #define ADC2_CHANNELS 2   // Number of channel in the sequence
 volatile uint16_t adc2_buffer[ADC2_CHANNELS] = {0}; // DMA Buffer
+
+#define ADC1_CHANNELS 2   // Number of channel in the sequence
+volatile uint16_t adc1_buffer[ADC1_CHANNELS] = {0};
 
 /* ============================================================================ */
 /* === Public Functions                                                     === */
@@ -71,8 +79,13 @@ bool SensorsCallbacks_Init(void)
 
     HAL_Delay(10);
 
-    // 5. Start ADC1 (interrupt mode)
-    HAL_ADC_Start_IT(&hadc1);
+    // 5. Start ADC1 with DMA
+    if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adc1_buffer, ADC1_CHANNELS) != HAL_OK) {
+        Error_Handler();
+    }
+
+    // 6. Start ADC3 in interrupt mode
+    HAL_ADC_Start_IT(&hadc3);
 
     callbacks_initialized = true;
     return true;
@@ -109,12 +122,19 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
     /* Route to appropriate sensor driver based on ADC instance */
     switch ((uint32_t)hadc->Instance) {
         case ADC1_BASE:
-            MCU_Temperature_ADC_CallBack(hadc);
+            MCU_Temperature_ADC_CallBack(adc1_buffer[MCU_SENS_VALUE]);
+            Voltage3V3_ADC_CallBack(adc1_buffer[V3v3_VALUE]);
             break;
             
         case ADC2_BASE:
             PCB_Temperature_ADC_CallBack(adc2_buffer[PCB_SENS_VALUE]);
             Voltage_Bus_ADC_CallBack(adc2_buffer[VBUS_VALUE]);
+            break;
+
+        case ADC3_BASE:
+            /* Get raw ADC conversion result */
+            uint16_t raw_value = (uint16_t)HAL_ADC_GetValue(hadc);
+            Voltage12V_ADC_CallBack(raw_value);
             break;
             
         default:
@@ -131,17 +151,22 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
  */
 void HAL_ADC_ErrorCallback(ADC_HandleTypeDef* hadc)
 {
-    /* Validate input parameter */
     if (hadc == NULL) {
         return;
     }
     
-    /* Basic error recovery: restart ADC */
+    /* Restart ADC with proper DMA mode */
     if (hadc->Instance == ADC1) {
-        /* Could add error logging here */
-        HAL_ADC_Stop_IT(hadc);
-        HAL_ADC_Start_IT(hadc);
+        HAL_ADC_Stop_DMA(hadc);
     }
+    else if (hadc->Instance == ADC2) {
+        HAL_ADC_Stop_DMA(hadc);
+    }
+    else if (hadc->Instance == ADC3)
+    {
+        HAL_ADC_Stop_IT(&hadc3);
+    }
+    
 }
 
 /* Future callback implementations can be added here:

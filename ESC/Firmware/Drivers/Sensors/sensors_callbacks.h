@@ -54,7 +54,7 @@ void TemperatureSensorManager_OnNewSample(temperature_sensor_id_t id, float valu
  * @param hadc ADC handle pointer from temperature sensor
  * @details Processes ADC conversion results for temperature measurements
  */
-void MCU_Temperature_ADC_CallBack(ADC_HandleTypeDef* hadc);
+void MCU_Temperature_ADC_CallBack(uint16_t value);
 
 /**
  * @brief Callback for PCB temperature sensor
@@ -81,6 +81,23 @@ void VoltageSensorManager_OnNewSample(voltage_sensor_id_t id, float value);
  */
 void Voltage_Bus_ADC_CallBack(uint16_t value);
 
+/**
+ * @brief ADC callback for 3.3V rail sensor.
+ * @param value Raw ADC conversion result for the 3.3V rail channel
+ *
+ * @details Converts raw ADC value into a 3.3V measurement and updates
+ *          the voltage manager with the new sample.
+ */
+void Voltage3V3_ADC_CallBack(uint16_t value);
+
+/**
+ * @brief ADC callback for 12V rail sensor.
+ * @param value Raw ADC conversion result for the 12V rail channel
+ *
+ * @details Converts raw ADC value into a 12V measurement and updates
+ *          the voltage manager with the new sample.
+ */
+void Voltage12V_ADC_CallBack(uint16_t value);
 
 
 #ifdef __cplusplus

@@ -176,8 +176,24 @@ float Service_GetMCU_Temp(void);
  */
 float Service_GetPCB_Temp(void);
 
-
+/**
+ * @brief Retrieve the most recent bus voltage measurement
+ * @return Bus voltage in volts (V), or 0.0f if unavailable
+ */
 float Service_GetBus_Voltage(void);
+
+/**
+ * @brief Retrieve the most recent 3.3V rail measurement
+ * @return 3.3V rail voltage in volts (V), or 0.0f if unavailable
+ */
+float Service_Get3v3_Voltage(void);
+
+/**
+ * @brief Retrieve the most recent 12V rail measurement
+ * @return 12V rail voltage in volts (V), or 0.0f if unavailable
+ */
+float Service_Get12V_Voltage(void);
+
 
 
 

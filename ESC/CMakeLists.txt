@@ -11,7 +11,7 @@ add_subdirectory(Firmware)
 
 set(FIRMWARE_TARGET "firmware.elf" CACHE STRING "Target firmware for flashing")
 
-add_custom_target(flash
+add_custom_target(flash_firmware
     COMMAND ${CMAKE_SOURCE_DIR}/DebugTools/flash.sh firmware
     DEPENDS firmware.elf
 )
