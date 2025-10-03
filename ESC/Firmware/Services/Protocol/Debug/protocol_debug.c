@@ -14,7 +14,7 @@
 #include <ctype.h>
 
 #include "services.h"
-#include "i_protocol.h"
+#include "protocol.h"
 #include "i_comm.h"
 
 /* ------------------------------------------------------------------------- */

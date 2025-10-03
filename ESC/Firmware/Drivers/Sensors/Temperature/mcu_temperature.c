@@ -7,7 +7,6 @@
  */
 
 #include "../sensors_callbacks.h"
-#include "adc.h"
 #include <stdbool.h>
 
 /* === Internal cache === */

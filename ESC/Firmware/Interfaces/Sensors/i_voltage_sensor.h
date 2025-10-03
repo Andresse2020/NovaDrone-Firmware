@@ -21,7 +21,8 @@ extern "C" {
  */
 typedef enum {
     VOLTAGE_BUS,       /**< DC bus voltage */
-    VOLTAGE_BATTERY    /**< Battery voltage */
+    VOLTAGE_3V3,
+    VOLTAGE_12V
 } voltage_sensor_id_t;
 
 /**

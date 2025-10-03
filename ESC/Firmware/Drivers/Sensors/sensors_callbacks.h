@@ -19,6 +19,7 @@ extern "C" {
 #include <stdbool.h>
 #include "bsp_utils.h"
 #include "i_temperature_sensor.h"  /* For temperature_sensor_id_t */
+#include "i_voltage_sensor.h"
 
 
 /* ==============================   Public Function Prototypes  ============================== */
@@ -63,6 +64,22 @@ void MCU_Temperature_ADC_CallBack(ADC_HandleTypeDef* hadc);
  *          Typically used to convert the raw value into °C and update monitoring logic.
  */
 void PCB_Temperature_ADC_CallBack(uint16_t value);
+
+/**
+ * @brief Called by ISR or ADC callback to store a new voltage sample in cache.
+ * @param id Voltage sensor identifier
+ * @param value Measured voltage value [V]
+ */
+void VoltageSensorManager_OnNewSample(voltage_sensor_id_t id, float value);
+
+/**
+ * @brief ADC callback for Bus Voltage sensor.
+ * @param value Raw ADC conversion result for the Bus Voltage channel
+ *
+ * @details Converts raw ADC value into a bus voltage and updates
+ *          the voltage manager with the new sample.
+ */
+void Voltage_Bus_ADC_CallBack(uint16_t value);
 
 
 

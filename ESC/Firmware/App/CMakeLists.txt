@@ -25,8 +25,8 @@ target_include_directories(firmware.elf PRIVATE
 # ===============================
 # Link your app with previously built static libraries
 target_link_libraries(firmware.elf PRIVATE
-    control_lib       # Control library
-    services_lib      # Servives library
+    control_API       # Control library
+    services_API      # Servives library
     config_lib        # Configuration library
     drivers_lib       # Drivers library
     board_lib         # Board-specific library

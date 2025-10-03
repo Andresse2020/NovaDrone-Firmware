@@ -114,6 +114,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
             
         case ADC2_BASE:
             PCB_Temperature_ADC_CallBack(adc2_buffer[PCB_SENS_VALUE]);
+            Voltage_Bus_ADC_CallBack(adc2_buffer[VBUS_VALUE]);
             break;
             
         default:

@@ -9,8 +9,8 @@
  */
 
 #include <string.h>
-#include "i_protocol.h"
-#include "i_frame_handler.h"
+#include "protocol.h"
+#include "frame_handler.h"
 #include "i_comm.h"   // Needed for IComm_Debug
 
 /* -------------------------------------------------------------------------- */

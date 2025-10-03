@@ -11,7 +11,6 @@ set(INTERFACE_LIBS
     sensors:Sensors
     utilities:Utilities
     system:ISystem
-    protocol:Protocol
 )
 
 # --------------------------------------------------------------------------

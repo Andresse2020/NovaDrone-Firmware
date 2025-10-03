@@ -177,13 +177,15 @@ float Service_GetMCU_Temp(void);
 float Service_GetPCB_Temp(void);
 
 
+float Service_GetBus_Voltage(void);
+
 
 
 /* -------------------------------------------------------------------------- */
 /*                          User-friendly macros                              */
 /* -------------------------------------------------------------------------- */
 
-#define LOG_NONE(fmt, ...)   PCTerminal_Log(LOG_LEVEL_NONE, fmt,  ##__VA_ARGS__)
+#define LOG_NONE(fmt, ...)    PCTerminal_Log(LOG_LEVEL_NONE, fmt,  ##__VA_ARGS__)
 #define LOG_ERROR(fmt, ...)   PCTerminal_Log(LOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
 #define LOG_WARN(fmt, ...)    PCTerminal_Log(LOG_LEVEL_WARN,  fmt, ##__VA_ARGS__)
 #define LOG_INFO(fmt, ...)    PCTerminal_Log(LOG_LEVEL_INFO,  fmt, ##__VA_ARGS__)
