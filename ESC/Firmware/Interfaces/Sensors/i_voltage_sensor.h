@@ -22,7 +22,8 @@ extern "C" {
 typedef enum {
     VOLTAGE_BUS,       /**< DC bus voltage */
     VOLTAGE_3V3,
-    VOLTAGE_12V
+    VOLTAGE_12V,
+    VOLT_SENSOR_COUNT
 } voltage_sensor_id_t;
 
 /**
@@ -35,6 +36,12 @@ typedef struct
      * @return true if successful, false otherwise
      */
     bool (*init)(void);
+
+    /**
+     * @brief Periodic non-blocking update function.
+     * Should trigger new acquisition or refresh cached value.
+     */
+    void (*update)(void);
 
     /**
      * @brief Read voltage of a specific sensor.

@@ -54,13 +54,14 @@ i_status_t Driver_Init(void)
     // Initialize FDCAN2 interface for CAN communication.
     MX_FDCAN2_Init();
 
-    // Initialize ADC1 and ADC2 for analog input readings (e.g., sensors).
+    // Initialize ADC1, ADC2 and ADC3 for analog input readings (e.g., sensors).
     MX_ADC1_Init();
     MX_ADC2_Init();
     MX_ADC3_Init();
 
-    // Initialize TIM7 timer (used for periodic interrupts or timing functions).
-    MX_TIM7_Init();
+    MX_TIM1_Init();
+    MX_TIM6_Init();
+    // Initialize TIM1 timer (used for periodic interrupts or timing functions).
 
     // TODO: Add other essential peripheral initializations here if needed
     // For example: SPI, I2C, additional timers, DAC, etc.

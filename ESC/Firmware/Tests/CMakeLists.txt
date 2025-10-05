@@ -22,12 +22,14 @@ foreach(TEST_SRC ${HIL_TEST_SOURCES})
 
     # Specify include directories required to build the test
     # These typically include all interface libraries, board-specific headers, and drivers
-    target_include_directories(${TEST_NAME}.elf PRIVATE
+    target_link_libraries(${TEST_NAME}.elf PRIVATE
         interface_actuators_lib     # Actuators interfaces
         interface_transport_lib     # Transport interfaces
         interface_sensors_lib       # Sensors interfaces
         interface_utilities_lib     # Utilities interfaces
         interface_system_lib        # System interfaces
+        drivers_lib                 # Drivers library
+        board_lib                   # Board-specific library
     )
 
     # Create a custom target for flashing the test onto the STM32 via OpenOCD

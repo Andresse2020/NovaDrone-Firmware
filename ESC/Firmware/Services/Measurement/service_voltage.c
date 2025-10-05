@@ -12,6 +12,8 @@
 float Service_GetBus_Voltage(void) {
     float voltage_local = 0.0;
 
+    IVoltageSensor->update();
+
     // Attempt to read the bus voltage from the voltage sensor manager
     if (!IVoltageSensor->read(VOLTAGE_BUS, &voltage_local)) {
         return 0.0f; // Return fallback value if read failed
@@ -31,6 +33,8 @@ float Service_GetBus_Voltage(void) {
 float Service_Get3v3_Voltage(void) {
     float voltage_local = 0.0;
 
+    IVoltageSensor->update();
+
     // Attempt to read the 3.3V rail voltage from the voltage sensor manager
     if (!IVoltageSensor->read(VOLTAGE_3V3, &voltage_local)) {
         return 0.0f; // Return fallback value if read failed
@@ -49,6 +53,8 @@ float Service_Get3v3_Voltage(void) {
  */
 float Service_Get12V_Voltage(void) {
     float voltage_local = 0.0;
+
+    IVoltageSensor->update();
 
     // Attempt to read the 12V rail voltage from the voltage sensor manager
     if (!IVoltageSensor->read(VOLTAGE_12V, &voltage_local)) {

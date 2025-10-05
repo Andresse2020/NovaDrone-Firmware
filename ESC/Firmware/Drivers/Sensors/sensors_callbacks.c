@@ -15,6 +15,7 @@
 #include "adc.h"
 #include "gpio.h"
 #include "tim.h"
+#include "usart.h"
 
 /* === Private Constants === */
 #define SENSORS_CALLBACKS_VERSION_MAJOR    1
@@ -23,26 +24,29 @@
 /* === Private Variables === */
 static bool callbacks_initialized = false;
 
-typedef enum{
-    PCB_SENS_VALUE = 0,
-    VBUS_VALUE
-}ADC2_channel_t;
-
-typedef enum{
-    MCU_SENS_VALUE = 0,
-    V3v3_VALUE,
-}ADC1_channel_t;
-
-/* === Public Variables === */
-#define ADC2_CHANNELS 2   // Number of channel in the sequence
+volatile uint16_t adc1_buffer[ADC1_CHANNELS] = {0}; // DMA Buffer
 volatile uint16_t adc2_buffer[ADC2_CHANNELS] = {0}; // DMA Buffer
-
-#define ADC1_CHANNELS 2   // Number of channel in the sequence
-volatile uint16_t adc1_buffer[ADC1_CHANNELS] = {0};
+volatile uint16_t adc3_buffer[ADC3_CHANNELS] = {0}; // DMA Buffer
 
 /* ============================================================================ */
 /* === Public Functions                                                     === */
 /* ============================================================================ */
+
+/**
+ * @brief Enable DWT cycle counter for performance measurement
+ * @note Must be called once during initialization
+ */
+void DWT_Init(void)
+{
+    // Enable TRC (Trace)
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    
+    // Reset cycle counter
+    DWT->CYCCNT = 0;
+    
+    // Enable cycle counter
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
 
 /**
  * @brief Initialize the sensors callback system
@@ -65,27 +69,35 @@ bool SensorsCallbacks_Init(void)
     if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED) != HAL_OK) {
         Error_Handler();
     }
-
-    // 2. Start the timer BEFORE starting the ADCs
-    HAL_TIM_Base_Start(&htim7);
     
-    // 3. Short delay to stabilize the timer
-    HAL_Delay(10);
-
-    // 4. Start ADC2 with DMA
-    if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*) adc2_buffer, ADC2_CHANNELS) != HAL_OK) {
+    if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED) != HAL_OK) {
         Error_Handler();
     }
 
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+    HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
+
+    HAL_TIM_Base_Start(&htim6);
+    
+    // HAL_TIM_OC_Start(&htim1, TIM_CHANNEL_4); 
+    
+    // 3. Court délai pour stabiliser le timer
     HAL_Delay(10);
 
-    // 5. Start ADC1 with DMA
+    // 4. Start ADC1 with DMA
     if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adc1_buffer, ADC1_CHANNELS) != HAL_OK) {
         Error_Handler();
     }
 
-    // 6. Start ADC3 in interrupt mode
-    HAL_ADC_Start_IT(&hadc3);
+    // // 5. Start ADC2 with DMA
+    if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*) adc2_buffer, ADC2_CHANNELS) != HAL_OK) {
+        Error_Handler();
+    }
+    
+    // 6. Start ADC3 with DMA (si besoin)
+    if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*) adc3_buffer, ADC3_CHANNELS) != HAL_OK) {
+        Error_Handler();
+    }
 
     callbacks_initialized = true;
     return true;
@@ -122,19 +134,17 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
     /* Route to appropriate sensor driver based on ADC instance */
     switch ((uint32_t)hadc->Instance) {
         case ADC1_BASE:
-            MCU_Temperature_ADC_CallBack(adc1_buffer[MCU_SENS_VALUE]);
-            Voltage3V3_ADC_CallBack(adc1_buffer[V3v3_VALUE]);
+            TemperatureSensorManager_OnEndOfBlock_ADC1();
+            VoltageSensorManager_OnEndOfBlock_ADC1();
             break;
             
         case ADC2_BASE:
-            PCB_Temperature_ADC_CallBack(adc2_buffer[PCB_SENS_VALUE]);
-            Voltage_Bus_ADC_CallBack(adc2_buffer[VBUS_VALUE]);
+            TemperatureSensorManager_OnEndOfBlock_ADC2();
+            VoltageSensorManager_OnEndOfBlock_ADC2();
             break;
 
         case ADC3_BASE:
-            /* Get raw ADC conversion result */
-            uint16_t raw_value = (uint16_t)HAL_ADC_GetValue(hadc);
-            Voltage12V_ADC_CallBack(raw_value);
+            VoltageSensorManager_OnEndOfBlock_ADC3();
             break;
             
         default:
@@ -164,7 +174,7 @@ void HAL_ADC_ErrorCallback(ADC_HandleTypeDef* hadc)
     }
     else if (hadc->Instance == ADC3)
     {
-        HAL_ADC_Stop_IT(&hadc3);
+        HAL_ADC_Stop_DMA(hadc);
     }
     
 }

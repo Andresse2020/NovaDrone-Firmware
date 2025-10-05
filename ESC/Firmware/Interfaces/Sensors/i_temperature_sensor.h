@@ -21,8 +21,7 @@ extern "C" {
 typedef enum {
     TEMP_MCU,
     TEMP_PCB,
-    TEMP_ESC,       /**< Temperature of ESC electronics */
-    TEMP_MOTOR      /**< Temperature of motor winding or case */
+    TEMP_SENSOR_COUNT
 } temperature_sensor_id_t;
 
 /**
