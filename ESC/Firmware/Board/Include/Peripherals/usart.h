@@ -36,21 +36,16 @@ extern UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN Private defines */
 
-#define UART_RX_Pin GPIO_PIN_3
-#define UART_RX_GPIO_Port GPIOA
-#define UART_TX_Pin GPIO_PIN_3
-#define UART_TX_GPIO_Port GPIOB
-
-
 /* USER CODE END Private defines */
 
 void MX_USART2_UART_Init(void);
 
+/* USER CODE BEGIN Prototypes */
 
+/* USER CODE END Prototypes */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* __USART_H__ */
-

@@ -24,35 +24,58 @@ extern "C" {
 
 /* ==============================       Public Variables        ============================== */
 
-/* =========================================================
- * === ADC End-Of-Block Flags
- * ========================================================= */
-
-typedef enum{
-    MCU_SENS_VALUE = 0,
-    V3v3_SENS_VALUE,
-}ADC1_channel_t;
-
-typedef enum{
-    PCB_SENS_VALUE = 0,
-    VBUS_SENS_VALUE
-}ADC2_channel_t;
-
-typedef enum{
-    V12_SENS_VALUE = 0,
-}ADC3_channel_t;
+/**
+ * @brief ADC1 channel mapping
+ *
+ * Defines the order of channels in the ADC1 conversion sequence.
+ * Each entry corresponds to a physical signal connected to ADC1.
+ */
+typedef enum {
+    MCU_SENS_VALUE = 0,   /**< Internal MCU temperature sensor */
+    V3v3_SENS_VALUE,      /**< 3.3V rail voltage sensor */
+} ADC1_channel_t;
 
 
-#define ADC1_CHANNELS 3   // Number of channel in the sequence
-#define ADC2_CHANNELS 3   // Number of channel in the sequence
-#define ADC3_CHANNELS 2   // Number of channel in the sequence
+/**
+ * @brief ADC2 channel mapping
+ *
+ * Defines the order of channels in the ADC2 conversion sequence.
+ */
+typedef enum {
+    PCB_SENS_VALUE = 0,   /**< External PCB temperature sensor */
+    VBUS_SENS_VALUE       /**< Bus voltage sensor */
+} ADC2_channel_t;
 
-/* =========================================================
- * === External DMA Buffers
- * ========================================================= */
+
+/**
+ * @brief ADC3 channel mapping
+ *
+ * Defines the order of channels in the ADC3 conversion sequence.
+ */
+typedef enum {
+    V12_SENS_VALUE = 0,   /**< 12V rail voltage sensor */
+} ADC3_channel_t;
+
+
+/* ==============================       Configuration Constants        ============================== */
+
+#define ADC1_CHANNELS 3   /**< Number of channels in ADC1 regular sequence */
+#define ADC2_CHANNELS 3   /**< Number of channels in ADC2 regular sequence */
+#define ADC3_CHANNELS 2   /**< Number of channels in ADC3 regular sequence */
+
+
+/* ==============================       Shared Buffers (DMA)        ============================== */
+
+/**
+ * @brief DMA buffers for ADC data acquisition
+ *
+ * Each buffer holds the most recent ADC conversion results for the corresponding ADC instance.
+ * Declared as volatile since they are updated by DMA in the background.
+ */
 extern volatile uint16_t adc1_buffer[ADC1_CHANNELS];
 extern volatile uint16_t adc2_buffer[ADC2_CHANNELS];
 extern volatile uint16_t adc3_buffer[ADC3_CHANNELS];
+
 
 
 /* ==============================   Public Function Prototypes  ============================== */
@@ -74,12 +97,45 @@ bool SensorsCallbacks_IsInitialized(void);
 
 /* ==============================   Sensor Interface Functions  ============================== */
 
+/**
+ * @brief Notify temperature sensor manager of ADC1 end-of-conversion block
+ *
+ * @details Called when ADC1 completes a block of conversions related
+ *          to temperature sensors. Triggers post-processing or data update.
+ */
 void TemperatureSensorManager_OnEndOfBlock_ADC1(void);
+
+/**
+ * @brief Notify temperature sensor manager of ADC2 end-of-conversion block
+ *
+ * @details Called when ADC2 completes a block of conversions related
+ *          to temperature sensors. Used if temperature channels are split
+ *          across multiple ADCs.
+ */
 void TemperatureSensorManager_OnEndOfBlock_ADC2(void);
 
+
+/**
+ * @brief Notify voltage sensor manager of ADC1 end-of-conversion block
+ *
+ * @details Called when ADC1 completes a conversion sequence for voltage sensors.
+ */
 void VoltageSensorManager_OnEndOfBlock_ADC1(void);
+
+/**
+ * @brief Notify voltage sensor manager of ADC2 end-of-conversion block
+ *
+ * @details Called when ADC2 completes a conversion sequence for voltage sensors.
+ */
 void VoltageSensorManager_OnEndOfBlock_ADC2(void);
-void VoltageSensorManager_OnEndOfBlock_ADC3(void); 
+
+/**
+ * @brief Notify voltage sensor manager of ADC3 end-of-conversion block
+ *
+ * @details Called when ADC3 completes a conversion sequence for voltage sensors.
+ */
+void VoltageSensorManager_OnEndOfBlock_ADC3(void);
+
 
 
 #ifdef __cplusplus
