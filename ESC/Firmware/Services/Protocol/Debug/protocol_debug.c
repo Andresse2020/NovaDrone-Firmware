@@ -527,7 +527,7 @@ static void ascii_show_help(void)
     char buffer[256];
 
     // 0. Erase the current prompt "> " on the terminal before sending new data
-    const char bs_prompt[] = {0x08, ' ', 0x08, 0x08, ' ', 0x08};
+    const char bs_prompt[] = {0x08, ' ', 0x08, 0x08, ' ', 0x08, '\0'};
     dbg_send(bs_prompt);
 
     // 1. Header

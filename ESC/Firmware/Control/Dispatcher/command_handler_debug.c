@@ -149,8 +149,8 @@ static void dispatch_system_command(const protocol_msg_t* msg)
             Service_FloatToString(Service_GetMCU_Temp(), mcu_temp, 2);
             Service_FloatToString(Service_GetPCB_Temp(), pcb_temp, 2);
             Service_FloatToString(Service_GetBus_Voltage(), voltage_bus, 2);
-            Service_FloatToString(Service_Get3v3_Voltage(), voltage_3v3, 2);
             Service_FloatToString(Service_Get12V_Voltage(), Voltage_12V, 2);
+            Service_FloatToString(Service_Get3v3_Voltage(), voltage_3v3, 2);
             
             // Log system status to the debug terminal
             LOG_INFO("System status:");
@@ -159,8 +159,8 @@ static void dispatch_system_command(const protocol_msg_t* msg)
             LOG_INFO("System MCU Temperature: %s °C", mcu_temp);
             LOG_INFO("System PCB Temperature: %s °C", pcb_temp);
             LOG_INFO("System BUS Voltage: %s Volts", voltage_bus);
-            LOG_INFO("System 3v3 Voltage: %s Volts", voltage_3v3);
             LOG_INFO("System 12V Voltage: %s Volts", Voltage_12V);
+            LOG_INFO("System 3v3 Voltage: %s Volts", voltage_3v3);
             break;
         }
 
