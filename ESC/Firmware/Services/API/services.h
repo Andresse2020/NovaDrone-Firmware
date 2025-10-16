@@ -194,8 +194,55 @@ float Service_Get3v3_Voltage(void);
  */
 float Service_Get12V_Voltage(void);
 
+/**
+ * @file current_conversion.c
+ * @brief Conversion utility: 12-bit ADC value → current (A)
+ *
+ * Formula:
+ *      I(A) = (ADC_raw / 4095) * (Vref / (Gain * Rshunt))
+ * 
+ * Parameters:
+ *      Vref   = 3.3 V
+ *      Gain   = 20 V/V
+ *      Rshunt = 10 mΩ
+ * 
+ * Result:
+ *      1 LSB ≈ 4.028 mA
+ */
+float Service_ADC_To_Current(uint16_t adc_value);
 
 
+// Update the local measurement buffer with the latest ADC readings
+bool Service_ADC_Motor_UpdateMeasurements(void);
+
+// Returns Phase A current in Amperes
+float Service_Get_PhaseA_Current(void);
+
+// Returns Phase B current in Amperes
+float Service_Get_PhaseB_Current(void);
+
+// Returns Phase C current in Amperes
+float Service_Get_PhaseC_Current(void);
+
+/**
+ * @brief Command a DC motor between PHASE_A and PHASE_B.
+ */
+void Service_DC_Command_AB(float duty);
+
+/**
+ * @brief Command a DC motor between PHASE_B and PHASE_C.
+ */
+void Service_DC_Command_BC(float duty);
+
+/**
+ * @brief Command a DC motor between PHASE_C and PHASE_A.
+ */
+void Service_DC_Command_CA(float duty);
+
+/**
+ * @brief Stop all DC motor outputs (float all phases).
+ */
+void Service_DC_StopAll(void);
 
 /* -------------------------------------------------------------------------- */
 /*                          User-friendly macros                              */
@@ -241,14 +288,15 @@ typedef enum {
 //     CMD_RECV        = 0x0203    ///< Receive last frame/message
 // } comm_cmd_t;
 
-/// Project-specific commands
-// typedef enum {
-    // Add your project-specific commands here
-    // Example:
-    // CMD_SETSPEED     = 0x1001,
-    // CMD_MOVE         = 0x1002,
-    // CMD_TAKE_CONTROL = 0x1003
-// } project_cmd_t;
+// Project-specific commands
+typedef enum {
+
+    CMD_SETSPEED     = 0x1001,
+    CMD_STOP         = 0x1002,
+    CMD_GETCURRENT   = 0x1003,
+    // CMD_MOVE         = 0x100x,
+    // CMD_TAKE_CONTROL = 0x100x,
+} project_cmd_t;
 
 
 #ifdef __cplusplus

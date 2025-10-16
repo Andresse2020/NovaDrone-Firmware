@@ -24,9 +24,12 @@
 /* === Private Variables === */
 static bool callbacks_initialized = false;
 
-volatile uint16_t adc1_buffer[ADC1_CHANNELS] = {0}; // DMA Buffer
-volatile uint16_t adc2_buffer[ADC2_CHANNELS] = {0}; // DMA Buffer
+// Local buffer updated by the ADC ISR (Service Layer). 
+volatile motor_measurements_t adc_motor_measurement_buffer;
+
 volatile uint16_t adc3_buffer[ADC3_CHANNELS] = {0}; // DMA Buffer
+volatile uint16_t adc4_buffer[ADC4_CHANNELS] = {0}; // DMA Buffer
+volatile uint16_t adc5_buffer[ADC5_CHANNELS] = {0}; // DMA Buffer
 
 /* ============================================================================ */
 /* === Public Functions                                                     === */
@@ -61,47 +64,65 @@ bool SensorsCallbacks_Init(void)
         return false;
     }
 
-    // 1. Calibrate ADC1 and ADC2
-    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) {
-        Error_Handler();
-    }
-    
-    if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED) != HAL_OK) {
-        Error_Handler();
-    }
-    
-    if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED) != HAL_OK) {
-        Error_Handler();
-    }
+    // -------------------------------------------------------------------------
+    // 1 Calibrate ADCs (ADC1, ADC3)
+    // -------------------------------------------------------------------------
+    if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
+    if (HAL_ADCEx_Calibration_Start(&hadc2, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
+    if (HAL_ADCEx_Calibration_Start(&hadc3, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
+    if (HAL_ADCEx_Calibration_Start(&hadc4, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
+    if (HAL_ADCEx_Calibration_Start(&hadc5, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
 
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-    HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
+
+    // Datasheet recommends a small delay after calibration
+    HAL_Delay(5); 
+
+    // -------------------------------------------------------------------------
+    // 2 Configure TIM1 TRGO to trigger injected ADC conversions
+    // -------------------------------------------------------------------------
+
+    HAL_TIM_OC_Start(&htim1, TIM_CHANNEL_4);
+
+    // -------------------------------------------------------------------------
+    // 3 Configure TIM6 TRGO to trigger regular ADC conversions via DMA
+    // -------------------------------------------------------------------------
 
     HAL_TIM_Base_Start(&htim6);
-    
-    // HAL_TIM_OC_Start(&htim1, TIM_CHANNEL_4); 
-    
-    // 3. Court délai pour stabiliser le timer
-    HAL_Delay(10);
 
-    // 4. Start ADC1 with DMA
-    if (HAL_ADC_Start_DMA(&hadc1, (uint32_t*) adc1_buffer, ADC1_CHANNELS) != HAL_OK) {
-        Error_Handler();
-    }
-
-    // // 5. Start ADC2 with DMA
-    if (HAL_ADC_Start_DMA(&hadc2, (uint32_t*) adc2_buffer, ADC2_CHANNELS) != HAL_OK) {
-        Error_Handler();
-    }
+    // -------------------------------------------------------------------------
+    // 4 Start regular ADC conversions via DMA
+    // -------------------------------------------------------------------------
     
-    // 6. Start ADC3 with DMA (si besoin)
-    if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*) adc3_buffer, ADC3_CHANNELS) != HAL_OK) {
+    if (HAL_ADC_Start_DMA(&hadc3, (uint32_t*) adc3_buffer, ADC3_CHANNELS) != HAL_OK) 
         Error_Handler();
-    }
+
+    if (HAL_ADC_Start_DMA(&hadc4, (uint32_t*) adc4_buffer, ADC4_CHANNELS) != HAL_OK) 
+        Error_Handler();
+
+    if (HAL_ADC_Start_DMA(&hadc5, (uint32_t*) adc5_buffer, ADC5_CHANNELS) != HAL_OK) 
+        Error_Handler();
+
+    // -------------------------------------------------------------------------
+    // 5 Start injected ADC conversions in interrupt mode (synchronized)
+    // -------------------------------------------------------------------------
+    // AutoInjectedConv = DISABLE because TRGO triggers conversions
+    if (HAL_ADCEx_InjectedStart_IT(&hadc1) != HAL_OK) Error_Handler();
+
+    HAL_Delay(5); // Small delay to ensure ADCs are stable
+    
+    if (HAL_ADCEx_InjectedStart_IT(&hadc2) != HAL_OK) Error_Handler();
+
+    // -------------------------------------------------------------------------
+    // 6 Additional timers or slow-loop tasks can be started here
+    // -------------------------------------------------------------------------
+    // HAL_TIM_Base_Start(&htim6);
 
     callbacks_initialized = true;
     return true;
 }
+
+
+
 
 /**
  * @brief Get initialization status of callbacks system
@@ -133,24 +154,57 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
     
     /* Route to appropriate sensor driver based on ADC instance */
     switch ((uint32_t)hadc->Instance) {
-        case ADC1_BASE:
-            TemperatureSensorManager_OnEndOfBlock_ADC1();
-            VoltageSensorManager_OnEndOfBlock_ADC1();
-            break;
-            
-        case ADC2_BASE:
-            TemperatureSensorManager_OnEndOfBlock_ADC2();
-            VoltageSensorManager_OnEndOfBlock_ADC2();
-            break;
-
         case ADC3_BASE:
             VoltageSensorManager_OnEndOfBlock_ADC3();
+            break;
+            
+        case ADC4_BASE:
+            VoltageSensorManager_OnEndOfBlock_ADC4();
+            break;
+
+        case ADC5_BASE:
+            TemperatureSensorManager_OnEndOfBlock_ADC5();
             break;
             
         default:
             /* Unexpected ADC instance - could log error if needed */
             break;
     }
+}
+
+/**
+ * @brief Injected Conversion Complete Callback (Called by the HAL_ADC_IRQHandler).
+ * * This ISR is triggered by ADC1 (Master) at 24 kHz after both conversions are done.
+ * * It copies the data from ADC JDRs to the buffer and sets the synchronization flag.
+ */
+#define IIR_ALPHA 5  // Coefficient de filtrage (2^n pour optimisation)
+
+void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef* hadc)
+{    
+    if (hadc->Instance != ADC1) return;
+    
+    static uint32_t i_a_filt = 0;
+    static uint32_t i_b_filt = 0;
+    static bool first_run = true;
+    
+    uint16_t i_a_raw = HAL_ADCEx_InjectedGetValue(&hadc1, ADC_INJECTED_RANK_1);
+    uint16_t i_b_raw = HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
+    
+    if (first_run) {
+        // Initialisation
+        i_a_filt = (uint32_t)i_a_raw << IIR_ALPHA;
+        i_b_filt = (uint32_t)i_b_raw << IIR_ALPHA;
+        first_run = false;
+    }
+    
+    // Filtre IIR: y[n] = (15/16)*y[n-1] + (1/16)*x[n]
+    i_a_filt = i_a_filt - (i_a_filt >> IIR_ALPHA) + i_a_raw;
+    i_b_filt = i_b_filt - (i_b_filt >> IIR_ALPHA) + i_b_raw;
+    
+    adc_motor_measurement_buffer.i_a_raw = (uint16_t)(i_a_filt >> IIR_ALPHA);
+    adc_motor_measurement_buffer.i_b_raw = (uint16_t)(i_b_filt >> IIR_ALPHA);
+
+    adc_notify_new_data_ready();
 }
 
 /**

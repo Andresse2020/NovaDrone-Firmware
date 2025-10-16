@@ -26,9 +26,8 @@
  * completed a DMA conversion sequence and is ready to be processed.
  */
 typedef struct {
-    volatile bool adc1_ready;
-    volatile bool adc2_ready;
     volatile bool adc3_ready;
+    volatile bool adc4_ready;
 } adc_flag_t;
 
 static adc_flag_t adc_flags = {0};
@@ -70,8 +69,8 @@ typedef struct {
 
 /* Actual mapping configuration */
 static const sensor_map_entry_t sensor_map[] = {
-    { .id = VOLTAGE_3V3, .adc_index = 1, .channel_index = V3v3_SENS_VALUE, .convert = Convert_3V3 },
-    { .id = VOLTAGE_BUS, .adc_index = 2, .channel_index = VBUS_SENS_VALUE, .convert = Convert_VBus },
+    { .id = VOLTAGE_3V3, .adc_index = 4, .channel_index = V3v3_SENS_VALUE, .convert = Convert_3V3 },
+    { .id = VOLTAGE_BUS, .adc_index = 4, .channel_index = VBUS_SENS_VALUE, .convert = Convert_VBus },
     { .id = VOLTAGE_12V, .adc_index = 3, .channel_index = V12_SENS_VALUE,  .convert = Convert_12V },
 };
 
@@ -149,9 +148,8 @@ bool VoltageSensorManager_Init(void)
  */
 void VoltageSensorManager_Update(void)
 {
-    ProcessAdcBuffer(1, adc1_buffer, &adc_flags.adc1_ready);
-    ProcessAdcBuffer(2, adc2_buffer, &adc_flags.adc2_ready);
     ProcessAdcBuffer(3, adc3_buffer, &adc_flags.adc3_ready);
+    ProcessAdcBuffer(4, adc4_buffer, &adc_flags.adc4_ready);
 }
 
 /**
@@ -196,9 +194,8 @@ static void VoltageSensorManager_Reset(void)
  * These functions should be called from HAL_ADC_ConvCpltCallback()
  * or similar ISR context to signal that new DMA data is available.
  */
-void VoltageSensorManager_OnEndOfBlock_ADC1(void) { adc_flags.adc1_ready = true; }
-void VoltageSensorManager_OnEndOfBlock_ADC2(void) { adc_flags.adc2_ready = true; }
 void VoltageSensorManager_OnEndOfBlock_ADC3(void) { adc_flags.adc3_ready = true; }
+void VoltageSensorManager_OnEndOfBlock_ADC4(void) { adc_flags.adc4_ready = true; }
 
 
 /* =========================================================

@@ -25,9 +25,7 @@
  * after the DMA buffer has been processed by the Update() function.
  */
 typedef struct {
-    volatile bool adc1_ready; /**< True if ADC1 has new data */
-    volatile bool adc2_ready; /**< True if ADC2 has new data */
-    volatile bool adc3_ready; /**< True if ADC3 has new data */
+    volatile bool adc5_ready; /**< True if ADC5 has new data */
 } adc_flag_t;
 
 static adc_flag_t adc_flags = {0};
@@ -43,7 +41,7 @@ static float Convert_TempMCU(uint16_t raw);
 /**
  * @brief Convert raw ADC data to PCB temperature (external sensor).
  */
-static float Convert_TempPCB(uint16_t raw);
+static float Convert_TempPCB(uint16_t raw) __attribute__((unused)) ;
 
 /* =========================================================
  * === Sensor Mapping (order independent)
@@ -63,8 +61,8 @@ typedef struct {
  * @note The table order does NOT matter; each entry is matched dynamically by adc_index.
  */
 static const sensor_map_entry_t sensor_map[] = {
-    { .id = TEMP_MCU, .adc_index = 1, .channel_index = MCU_SENS_VALUE, .convert = Convert_TempMCU },
-    { .id = TEMP_PCB, .adc_index = 2, .channel_index = PCB_SENS_VALUE, .convert = Convert_TempPCB },
+    { .id = TEMP_MCU, .adc_index = 5, .channel_index = MCU_SENS_VALUE, .convert = Convert_TempMCU },
+    // { .id = TEMP_PCB, .adc_index = 2, .channel_index = PCB_SENS_VALUE, .convert = Convert_TempPCB },
 };
 
 #define SENSOR_MAP_COUNT (sizeof(sensor_map) / sizeof(sensor_map[0]))
@@ -150,9 +148,7 @@ bool TemperatureSensorManager_Init(void)
  */
 void TemperatureSensorManager_Update(void)
 {
-    ProcessAdcBuffer(1, adc1_buffer, &adc_flags.adc1_ready);
-    ProcessAdcBuffer(2, adc2_buffer, &adc_flags.adc2_ready);
-    ProcessAdcBuffer(3, adc3_buffer, &adc_flags.adc3_ready);
+    ProcessAdcBuffer(5, adc5_buffer, &adc_flags.adc5_ready);
 }
 
 /**
@@ -180,25 +176,9 @@ bool TemperatureSensorManager_Read(temperature_sensor_id_t id, float* out)
 /**
  * @brief ISR callback for ADC1 end-of-block event.
  */
-void TemperatureSensorManager_OnEndOfBlock_ADC1(void)
+void TemperatureSensorManager_OnEndOfBlock_ADC5(void)
 {
-    adc_flags.adc1_ready = true;
-}
-
-/**
- * @brief ISR callback for ADC2 end-of-block event.
- */
-void TemperatureSensorManager_OnEndOfBlock_ADC2(void)
-{
-    adc_flags.adc2_ready = true;
-}
-
-/**
- * @brief ISR callback for ADC3 end-of-block event.
- */
-void TemperatureSensorManager_OnEndOfBlock_ADC3(void)
-{
-    adc_flags.adc3_ready = true;
+    adc_flags.adc5_ready = true;
 }
 
 /* =========================================================

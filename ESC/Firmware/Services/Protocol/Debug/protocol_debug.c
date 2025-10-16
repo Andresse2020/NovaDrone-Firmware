@@ -73,7 +73,9 @@ const ascii_command_map_t command_map[] = {
     // ---------------------------------------------------------------------
     // Project-specific commands
     // ---------------------------------------------------------------------
-    // {"setspeed",    CMD_SETSPEED,   "Set actuator speed",                       "<speed:int>"},
+    {"setspeed",    CMD_SETSPEED,   "Set actuator speed",                       "<speed:float>"},
+    {"stop",        CMD_STOP,       "Stop the actuator",                        "[none]"},
+    {"getcurrent",  CMD_GETCURRENT,  "Get Phases current in Amps",              "[none]"},
     // {"move",        CMD_MOVE,       "Move actuator to position",                "<pos:int>"},
     // {"take_control",CMD_TAKE_CONTROL,"Take manual control of the system",       "[none]"}
 };

@@ -58,6 +58,8 @@ i_status_t Driver_Init(void)
     MX_ADC1_Init();
     MX_ADC2_Init();
     MX_ADC3_Init();
+    MX_ADC4_Init();
+    MX_ADC5_Init();
 
     MX_TIM1_Init();
     MX_TIM6_Init();

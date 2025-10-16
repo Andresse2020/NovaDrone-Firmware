@@ -20,6 +20,7 @@ extern "C" {
 #include "bsp_utils.h"
 #include "i_temperature_sensor.h"  /* For temperature_sensor_id_t */
 #include "i_voltage_sensor.h"
+#include "i_motor_sensor.h"
 
 
 /* ==============================       Public Variables        ============================== */
@@ -31,9 +32,8 @@ extern "C" {
  * Each entry corresponds to a physical signal connected to ADC1.
  */
 typedef enum {
-    MCU_SENS_VALUE = 0,   /**< Internal MCU temperature sensor */
-    V3v3_SENS_VALUE,      /**< 3.3V rail voltage sensor */
-} ADC1_channel_t;
+    V12_SENS_VALUE = 0,   /**< 12V rail voltage sensor */
+} ADC3_channel_t;
 
 
 /**
@@ -42,9 +42,9 @@ typedef enum {
  * Defines the order of channels in the ADC2 conversion sequence.
  */
 typedef enum {
-    PCB_SENS_VALUE = 0,   /**< External PCB temperature sensor */
+    V3v3_SENS_VALUE,      /**< 3.3V rail voltage sensor */
     VBUS_SENS_VALUE       /**< Bus voltage sensor */
-} ADC2_channel_t;
+} ADC4_channel_t;
 
 
 /**
@@ -53,15 +53,15 @@ typedef enum {
  * Defines the order of channels in the ADC3 conversion sequence.
  */
 typedef enum {
-    V12_SENS_VALUE = 0,   /**< 12V rail voltage sensor */
-} ADC3_channel_t;
+    MCU_SENS_VALUE = 0,   /**< Internal MCU temperature sensor */
+} ADC5_channel_t;
 
 
 /* ==============================       Configuration Constants        ============================== */
 
-#define ADC1_CHANNELS 3   /**< Number of channels in ADC1 regular sequence */
-#define ADC2_CHANNELS 3   /**< Number of channels in ADC2 regular sequence */
-#define ADC3_CHANNELS 2   /**< Number of channels in ADC3 regular sequence */
+#define ADC3_CHANNELS 1   /**< Number of channels in ADC1 regular sequence */
+#define ADC4_CHANNELS 2   /**< Number of channels in ADC2 regular sequence */
+#define ADC5_CHANNELS 1   /**< Number of channels in ADC3 regular sequence */
 
 
 /* ==============================       Shared Buffers (DMA)        ============================== */
@@ -72,10 +72,17 @@ typedef enum {
  * Each buffer holds the most recent ADC conversion results for the corresponding ADC instance.
  * Declared as volatile since they are updated by DMA in the background.
  */
-extern volatile uint16_t adc1_buffer[ADC1_CHANNELS];
-extern volatile uint16_t adc2_buffer[ADC2_CHANNELS];
 extern volatile uint16_t adc3_buffer[ADC3_CHANNELS];
+extern volatile uint16_t adc4_buffer[ADC4_CHANNELS];
+extern volatile uint16_t adc5_buffer[ADC5_CHANNELS];
 
+/*
+    * @brief Shared buffer for motor measurements
+    *
+    * This buffer is updated by the ADC ISR and read by the FOC loop.
+    * Declared as extern to allow access from other modules.
+*/
+extern volatile motor_measurements_t adc_motor_measurement_buffer;
 
 
 /* ==============================   Public Function Prototypes  ============================== */
@@ -98,43 +105,35 @@ bool SensorsCallbacks_IsInitialized(void);
 /* ==============================   Sensor Interface Functions  ============================== */
 
 /**
- * @brief Notify temperature sensor manager of ADC1 end-of-conversion block
+ * @brief Notify temperature sensor manager of ADC5 end-of-conversion block
  *
  * @details Called when ADC1 completes a block of conversions related
  *          to temperature sensors. Triggers post-processing or data update.
  */
-void TemperatureSensorManager_OnEndOfBlock_ADC1(void);
-
-/**
- * @brief Notify temperature sensor manager of ADC2 end-of-conversion block
- *
- * @details Called when ADC2 completes a block of conversions related
- *          to temperature sensors. Used if temperature channels are split
- *          across multiple ADCs.
- */
-void TemperatureSensorManager_OnEndOfBlock_ADC2(void);
-
+void TemperatureSensorManager_OnEndOfBlock_ADC5(void);
 
 /**
  * @brief Notify voltage sensor manager of ADC1 end-of-conversion block
  *
- * @details Called when ADC1 completes a conversion sequence for voltage sensors.
- */
-void VoltageSensorManager_OnEndOfBlock_ADC1(void);
-
-/**
- * @brief Notify voltage sensor manager of ADC2 end-of-conversion block
- *
- * @details Called when ADC2 completes a conversion sequence for voltage sensors.
- */
-void VoltageSensorManager_OnEndOfBlock_ADC2(void);
-
-/**
- * @brief Notify voltage sensor manager of ADC3 end-of-conversion block
- *
  * @details Called when ADC3 completes a conversion sequence for voltage sensors.
  */
 void VoltageSensorManager_OnEndOfBlock_ADC3(void);
+
+/**
+ * @brief Notify voltage sensor manager of ADC4 end-of-conversion block
+ *
+ * @details Called when ADC2 completes a conversion sequence for voltage sensors.
+ */
+void VoltageSensorManager_OnEndOfBlock_ADC4(void);
+
+/**
+ * @brief Notify the motor sensor manager that new ADC data is ready
+ *
+ * This function should be called by the ADC ISR after updating
+ * `adc_motor_measurement_buffer` to inform the FOC loop that
+ * new measurements are available.
+ */
+void adc_notify_new_data_ready(void);
 
 
 

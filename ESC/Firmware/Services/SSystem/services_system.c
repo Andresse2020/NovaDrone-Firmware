@@ -2,6 +2,7 @@
 #include "i_system.h"
 #include "i_comm.h"
 #include "i_temperature_sensor.h"
+#include "i_inverter.h"
 
 
 /**
@@ -63,6 +64,24 @@ service_status_t Services_Init(void) {
 
     // Initialize the temperature sensor service
     if (!ITemperatureSensor->init())
+    {
+        return SERVICE_ERROR;
+    }
+
+    // Initialize the inverter driver
+    if (!IInverter->init())
+    {
+        return SERVICE_ERROR;
+    }
+
+    // Optionally arm and enable the inverter if required at startup
+    if (!IInverter->arm())
+    {
+        return SERVICE_ERROR;
+    }
+
+    // Enable the inverter outputs
+    if (!IInverter->enable())
     {
         return SERVICE_ERROR;
     }

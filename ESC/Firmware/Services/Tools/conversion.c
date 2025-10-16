@@ -58,3 +58,24 @@ void Service_FloatToString(float value, char* str, uint8_t precision)
     // Null-terminate string
     *ptr = '\0';
 }
+
+
+
+#define ADC_MAX_COUNTS   4095.0f
+#define VREF             3.3f
+#define SHUNT_RESISTANCE 0.010f   // 10 mΩ
+#define CURRENT_GAIN     20.0f
+
+/**
+ * @brief Converts a raw ADC sample (12-bit) to a current value in Amperes.
+ * @param adc_value Raw ADC sample (0–4095)
+ * @return Measured current in Amperes.
+ */
+float Service_ADC_To_Current(uint16_t adc_value)
+{
+    // Precomputed constant to reduce runtime floating-point ops
+    static const float K_ADC_TO_CURRENT =
+        (VREF / (ADC_MAX_COUNTS * CURRENT_GAIN * SHUNT_RESISTANCE));
+
+    return ((float)adc_value) * K_ADC_TO_CURRENT;
+}
