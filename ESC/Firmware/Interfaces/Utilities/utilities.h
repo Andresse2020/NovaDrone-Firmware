@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * @file i_delay.h
@@ -21,6 +22,11 @@ extern "C" {
  */
 typedef struct
 {
+    /**
+     * @brief Initialize the delay interface.
+     * @return true if initialization was successful, false otherwise
+     */
+    bool (*init)(void);
     /**
      * @brief Delay for a number of milliseconds.
      * @param ms Duration in milliseconds

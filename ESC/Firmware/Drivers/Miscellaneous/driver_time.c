@@ -1,20 +1,39 @@
 #include "utilities.h"
 #include "bsp_utils.h"
+#include "tim.h"
 
 /* -------------------------------------------------------------------------- */
 /*                   Local static helper function definitions                 */
 /* -------------------------------------------------------------------------- */
 
 /**
- * @brief Delay for a specified time in milliseconds.
- * 
- * Thin wrapper around HAL_Delay() to match the i_time_t interface.
- * 
- * @param ms Duration to wait, in milliseconds.
+ * @brief Initialize DWT for cycle counting
+ * @note Must be called once at startup
  */
-static void hal_delay_ms(uint32_t ms)
+void DWT_Init(void)
 {
-    HAL_Delay(ms);
+    // Enable TRC (Trace)
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    
+    // Reset cycle counter
+    DWT->CYCCNT = 0;
+    
+    // Enable cycle counter
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
+
+/**
+ * @brief Initialize the hardware timer for microsecond delays.
+ * 
+ * This function starts TIM7 in base mode to be used for
+ * generating microsecond delays.
+ * 
+ * @return true if initialization is successful, false otherwise.
+ */
+static bool Timer_init(void)
+{
+    DWT_Init(); // Initialize DWT for cycle counting
+    return true; // Timer started successfully
 }
 
 /**
@@ -39,6 +58,29 @@ uint32_t GetSystemFrequency(void)
     return HAL_RCC_GetSysClockFreq();
 }
 
+/**
+ * @brief Delay using DWT cycle counter (most accurate)
+ * @param us Microseconds to delay
+ * @note System clock must be known (e.g., 150 MHz)
+ */
+void DWT_delay_us(uint32_t us)
+{
+    uint32_t cycles = us * (SystemCoreClock / 1000000);  // Convert µs to cycles
+    uint32_t start = DWT->CYCCNT;
+    
+    while ((DWT->CYCCNT - start) < cycles) {
+        // Busy wait
+    }
+}
+
+/* @brief Delay for a number of milliseconds using HAL_Delay.
+ * @param ms Duration in milliseconds
+ */
+void HAL_Delay_ms(uint32_t ms)
+{
+    HAL_Delay(ms);
+}
+
 /* -------------------------------------------------------------------------- */
 /*                   Global time driver interface instance                    */
 /* -------------------------------------------------------------------------- */
@@ -50,10 +92,11 @@ uint32_t GetSystemFrequency(void)
  * delay_us is not implemented and must be provided if required by the system.
  */
 i_time_t driver_time = {
+    .init               = Timer_init,
     .getTick            = getTick,
-    .delay_ms           = hal_delay_ms,
+    .delay_ms           = HAL_Delay_ms,
     .getSystemFrequency = GetSystemFrequency,
-    .delay_us           = NULL // Not implemented (requires timer-based approach)
+    .delay_us           = DWT_delay_us
 };
 
 /** Global pointer to the time driver instance */

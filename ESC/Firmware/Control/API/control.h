@@ -33,9 +33,8 @@ control_status_t Control_Init(void);
 
 
 void control_start(void);
-void frame_handler_test(void);
-void App_Init(void);
 void command_handler_debug_process(void);
+void start_motor(void);
 
 #ifdef __cplusplus
 }

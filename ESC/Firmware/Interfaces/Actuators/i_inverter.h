@@ -33,6 +33,20 @@ typedef enum {
     PHASE_COUNT = 3
 } inverter_phase_t;
 
+/* === Phase output state =============================================== */
+/**
+ * @brief Individual phase output state
+ * Used for six-step commutation and advanced control
+ */
+typedef enum {
+    STATE_HIZ = 0,      /**< Both outputs Hi-Z (freewheeling) */
+    STATE_PWM_ACTIVE,   /**< Normal complementary PWM */
+    STATE_PWM_HIGH,     /**< High-side PWM, Low-side OFF */
+    STATE_PWM_LOW,      /**< High-side OFF, Low-side PWM */
+    STATE_FORCE_HIGH,   /**< High-side ON, Low-side OFF (100% duty) */
+    STATE_FORCE_LOW     /**< High-side OFF, Low-side ON (0% duty) */
+} phase_output_state_t;
+
 /* === Fault definitions ================================================= */
 
 /**
@@ -157,6 +171,15 @@ typedef bool (*inverter_clear_faults_t)(void);
  */
 typedef void (*inverter_notify_fault_t)(inverter_fault_t fault);
 
+/**
+ * @brief Set output state for a single phase.
+ * Used for six-step commutation or advanced control modes.
+ * @param phase Phase identifier (PHASE_A/B/C)
+ * @param state Desired output state
+ * @return true if state successfully applied
+ */
+typedef bool (*inverter_set_output_state)(inverter_phase_t phase, phase_output_state_t state);
+
 /* === Interface struct ================================================= */
 
 typedef struct {
@@ -171,6 +194,7 @@ typedef struct {
     inverter_get_status_t      get_status;       /**< Read inverter status */
     inverter_clear_faults_t    clear_faults;     /**< Clear latched faults */
     inverter_notify_fault_t    notify_fault;     /**< Notify of low-level fault from ISR */
+    inverter_set_output_state  set_output_state; /**< Set output state for single phase */
 } i_inverter_t;
 
 /* === Global instance ================================================== */

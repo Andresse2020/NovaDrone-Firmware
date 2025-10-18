@@ -244,6 +244,40 @@ void Service_DC_Command_CA(float duty);
  */
 void Service_DC_StopAll(void);
 
+/**
+ * @brief Align the rotor to a known position before startup (six-step method).
+ *
+ * This function energizes two motor phases to generate a static magnetic field
+ * that aligns the rotor in a defined electrical position. It should be called
+ * once before the open-loop acceleration phase.
+ *
+ * Typical sequence:
+ *   1. Apply a DC voltage between two phases (e.g., A+ / B−, C floating).
+ *   2. Wait several hundred milliseconds to allow rotor alignment.
+ *
+ * @param duty Alignment duty (0.0–1.0 normalized)
+ * @param duration_ms Alignment duration in milliseconds
+ */
+void Service_Motor_Align_Rotor(float duty, uint32_t duration_ms);
+
+/**
+ * @brief Open-loop startup ramp (six-step commutation)
+ * @param duty_start     Duty au début (0.0–1.0)
+ * @param duty_end       Duty à la fin (0.0–1.0)
+ * @param freq_start_hz  Fréquence électrique initiale (en Hz)
+ * @param freq_end_hz    Fréquence électrique finale (en Hz)
+ * @param duration_ms    Durée totale de la rampe
+ * @param cw             true = horaire, false = antihoraire
+ */
+void Service_Motor_OpenLoopRamp(
+    float duty_start,
+    float duty_end,
+    float freq_start_hz,
+    float freq_end_hz,
+    uint32_t duration_ms,
+    bool cw);
+
+
 /* -------------------------------------------------------------------------- */
 /*                          User-friendly macros                              */
 /* -------------------------------------------------------------------------- */

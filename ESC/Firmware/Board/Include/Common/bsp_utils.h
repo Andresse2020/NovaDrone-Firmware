@@ -14,8 +14,16 @@ extern "C" {
 #define PWM_A_L_GPIO_Port GPIOC
 #define Current_Sens_1_Pin GPIO_PIN_0
 #define Current_Sens_1_GPIO_Port GPIOA
+#define Phase_1_Pin GPIO_PIN_2
+#define Phase_1_GPIO_Port GPIOA
+#define PCB_Temp_Pin GPIO_PIN_4
+#define PCB_Temp_GPIO_Port GPIOA
+#define Phase_2_Pin GPIO_PIN_5
+#define Phase_2_GPIO_Port GPIOA
 #define Current_Sens_2_Pin GPIO_PIN_6
 #define Current_Sens_2_GPIO_Port GPIOA
+#define Phase_3_Pin GPIO_PIN_12
+#define Phase_3_GPIO_Port GPIOB
 #define V12_Measure_Pin GPIO_PIN_13
 #define V12_Measure_GPIO_Port GPIOB
 #define V3_3_Measure_Pin GPIO_PIN_14

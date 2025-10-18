@@ -11,6 +11,8 @@ int main(void)
     // Initialize the control layer, including services, communication, and logging
     Control_Init();
 
+    start_motor();
+
     // Infinite main loop
     while (1)
     {

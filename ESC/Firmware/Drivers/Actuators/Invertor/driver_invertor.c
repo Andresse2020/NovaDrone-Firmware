@@ -42,6 +42,7 @@ static bool Driver_GetDuties(inverter_duty_t* out);
 static void Driver_GetStatus(inverter_status_t* out);
 static bool Driver_ClearFaults(void);
 static void Driver_NotifyFault(inverter_fault_t fault);
+static bool Driver_SetOutputState(inverter_phase_t phase, phase_output_state_t state);
 
 /* === Global interface instance ======================================= */
 i_inverter_t stm32g4_inverter_driver = {
@@ -55,7 +56,8 @@ i_inverter_t stm32g4_inverter_driver = {
     .get_duties       = Driver_GetDuties,
     .get_status       = Driver_GetStatus,
     .clear_faults     = Driver_ClearFaults,
-    .notify_fault     = Driver_NotifyFault
+    .notify_fault     = Driver_NotifyFault,
+    .set_output_state = Driver_SetOutputState
 };
 
 i_inverter_t* IInverter = &stm32g4_inverter_driver;
@@ -230,4 +232,65 @@ static void Driver_NotifyFault(inverter_fault_t fault)
 {
     inverter_status.fault = fault;
     Driver_Disable();  // Immediately disable outputs on fault
+}
+
+/**
+ * @brief Set output state for a single phase
+ * @param phase Phase identifier
+ * @param state Desired output state
+ * @details Controls high-side and low-side outputs independently:
+ * - Hi-Z: Both MOSFETs OFF
+ * - PWM: Normal complementary operation
+ * - PWM_HIGH: High-side PWM, low-side always OFF
+ * - PWM_LOW: High-side always OFF, low-side PWM
+ */
+static bool Driver_SetOutputState(inverter_phase_t phase, phase_output_state_t state)
+{
+    if (phase >= PHASE_COUNT) return false;
+    
+    uint32_t channel = inverter_channels[phase];
+    
+    switch (state)
+    {
+        case STATE_HIZ:
+            /* Both outputs Hi-Z (stop both channels) */
+            HAL_TIM_PWM_Stop(inverter_tim, channel);
+            HAL_TIMEx_PWMN_Stop(inverter_tim, channel);
+            break;
+            
+        case STATE_PWM_ACTIVE:
+            /* Normal complementary PWM (both channels active) */
+            HAL_TIM_PWM_Start(inverter_tim, channel);
+            HAL_TIMEx_PWMN_Start(inverter_tim, channel);
+            break;
+            
+        case STATE_PWM_HIGH:
+            /* High-side PWM, Low-side forced OFF */
+            HAL_TIM_PWM_Start(inverter_tim, channel);
+            HAL_TIMEx_PWMN_Stop(inverter_tim, channel);
+            break;
+            
+        case STATE_PWM_LOW:
+            /* High-side forced OFF, Low-side PWM */
+            HAL_TIM_PWM_Stop(inverter_tim, channel);
+            HAL_TIMEx_PWMN_Start(inverter_tim, channel);
+            break;
+            
+        case STATE_FORCE_HIGH:
+            /* Force 100% duty (high-side ON) */
+            __HAL_TIM_SET_COMPARE(inverter_tim, channel, 
+                                 __HAL_TIM_GET_AUTORELOAD(inverter_tim) + 1);
+            HAL_TIM_PWM_Start(inverter_tim, channel);
+            HAL_TIMEx_PWMN_Stop(inverter_tim, channel);
+            break;
+            
+        case STATE_FORCE_LOW:
+            /* Force 0% duty (low-side ON) */
+            __HAL_TIM_SET_COMPARE(inverter_tim, channel, 0);
+            HAL_TIM_PWM_Stop(inverter_tim, channel);
+            HAL_TIMEx_PWMN_Start(inverter_tim, channel);
+            break;
+    }
+
+    return true;
 }
