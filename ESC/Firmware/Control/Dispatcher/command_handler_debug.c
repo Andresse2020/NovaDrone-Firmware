@@ -264,6 +264,29 @@ static void dispatch_system_command(const protocol_msg_t* msg)
             break;
         }
 
+        case CMD_STARTRAMP:
+        {
+            if (msg->arg_count < 2) {
+                LOG_WARN("Usage: startramp <ramp_time_ms> <cw/ccw>");
+                break;
+            }
+
+            uint32_t ramp_time_ms = (uint32_t)msg->args[0].value.i;
+            bool cw = (msg->args[1].value.i != 0);
+
+            Service_Motor_OpenLoopRamp_Start(0.25f, 0.5f, 1.0f, 100.0f, ramp_time_ms, cw, RAMP_PROFILE_EXPONENTIAL, NULL, NULL);
+            LOG_INFO("Motor ramp started: time=%lu ms, direction=%s", ramp_time_ms, cw ? "CW" : "CCW");
+            break;
+
+        }
+
+        case CMD_STOPRAMP:
+        {
+            Service_Motor_OpenLoopRamp_Stop();
+            LOG_INFO("Motor ramp stopped");
+            break;
+        }
+
         default:
         {
             // Handle unsupported or unknown commands

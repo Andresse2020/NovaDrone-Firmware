@@ -76,6 +76,8 @@ const ascii_command_map_t command_map[] = {
     {"setspeed",    CMD_SETSPEED,   "Set actuator speed",                       "<speed:float>"},
     {"stop",        CMD_STOP,       "Stop the actuator",                        "[none]"},
     {"getcurrent",  CMD_GETCURRENT,  "Get Phases current in Amps",              "[none]"},
+    {"startramp",   CMD_STARTRAMP,  "Start open-loop six-step ramp",           "<ramp_time_ms:int> <direction_cw:int>"},
+    {"stopramp",    CMD_STOPRAMP,   "Stop ongoing open-loop six-step ramp",     "[none]"},
     // {"move",        CMD_MOVE,       "Move actuator to position",                "<pos:int>"},
     // {"take_control",CMD_TAKE_CONTROL,"Take manual control of the system",       "[none]"}
 };

@@ -3,7 +3,8 @@
 #include "i_comm.h"
 #include "i_temperature_sensor.h"
 #include "i_inverter.h"
-#include "utilities.h"
+#include "i_time.h"
+#include "i_time_oneshot.h"
 
 
 /**
@@ -94,6 +95,11 @@ service_status_t Services_Init(void) {
         return SERVICE_ERROR;
     }
     
+    // Initialize the one-shot timer service
+    if (!IOneShotTimer->init())
+    {
+        return SERVICE_ERROR;
+    }
 
     // TODO: Add initialization of other services if required
     // Example: IVoltageSensor->init(), ICurrentSensor->init(), etc.

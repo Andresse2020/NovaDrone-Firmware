@@ -61,9 +61,10 @@ i_status_t Driver_Init(void)
     MX_ADC4_Init();
     MX_ADC5_Init();
 
+    // Initialize TIM1, TIM5, and TIM6 timers for various timing functions.
     MX_TIM1_Init();
+    MX_TIM5_Init();
     MX_TIM6_Init();
-    // Initialize TIM1 timer (used for periodic interrupts or timing functions).
 
     // TODO: Add other essential peripheral initializations here if needed
     // For example: SPI, I2C, additional timers, DAC, etc.

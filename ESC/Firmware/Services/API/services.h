@@ -31,6 +31,22 @@ typedef enum {
 } log_level_t;
 
 /* -------------------------------------------------------------------------- */
+/*                     Motor Ramp Profile Types                               */
+/* -------------------------------------------------------------------------- */
+/**
+ * @brief Available ramp profile types.
+ */
+typedef enum
+{
+    RAMP_PROFILE_LINEAR = 0,       /**< Linear progression (default) */
+    RAMP_PROFILE_EXPONENTIAL,      /**< Exponential progression */
+    RAMP_PROFILE_QUADRATIC,        /**< Quadratic progression */
+    RAMP_PROFILE_LOGARITHMIC       /**< Logarithmic progression */
+} motor_ramp_profile_t;
+
+typedef void (*motor_ramp_callback_t)(void *user_ctx);
+
+/* -------------------------------------------------------------------------- */
 /*                          Public API                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -79,6 +95,8 @@ service_status_t Services_Init(void);
  * @param led The identifier of the LED to blink (see ILedId_t).
  */
 void service_blink_status_Led(uint32_t delay);
+
+void Service_Test_OneShotTimer(void);
 
 /**
  * @brief Convert a float number to string for debug output.
@@ -261,21 +279,43 @@ void Service_DC_StopAll(void);
 void Service_Motor_Align_Rotor(float duty, uint32_t duration_ms);
 
 /**
- * @brief Open-loop startup ramp (six-step commutation)
- * @param duty_start     Duty au début (0.0–1.0)
- * @param duty_end       Duty à la fin (0.0–1.0)
- * @param freq_start_hz  Fréquence électrique initiale (en Hz)
- * @param freq_end_hz    Fréquence électrique finale (en Hz)
- * @param duration_ms    Durée totale de la rampe
- * @param cw             true = horaire, false = antihoraire
+ * @brief Start an open-loop six-step ramp (event-driven, non-blocking).
+ *
+ * This function initializes the ramp context, performs the first commutation,
+ * and schedules the next commutation step using the one-shot timer. The ramp
+ * progresses automatically without blocking the CPU. When the ramp completes,
+ * the optional user callback is invoked.
+ *
+ * @param duty_start     Starting duty (0.0–1.0)
+ * @param duty_end       Final duty (0.0–1.0)
+ * @param freq_start_hz  Starting electrical frequency (Hz)
+ * @param freq_end_hz    Final electrical frequency (Hz)
+ * @param ramp_time_ms   Total ramp duration in milliseconds
+ * @param cw             true = clockwise, false = counterclockwise
+ * @param profile_type   Ramp progression profile
+ * @param on_complete    Optional callback called when ramp finishes (can be NULL)
+ * @param user_ctx       User context pointer passed to the callback (can be NULL)
  */
-void Service_Motor_OpenLoopRamp(
+void Service_Motor_OpenLoopRamp_Start(
     float duty_start,
     float duty_end,
     float freq_start_hz,
     float freq_end_hz,
-    uint32_t duration_ms,
-    bool cw);
+    uint32_t ramp_time_ms,
+    bool cw,
+    motor_ramp_profile_t profile_type,
+    motor_ramp_callback_t on_complete,
+    void *user_ctx
+);
+
+/**
+ * @brief Stop the ongoing open-loop six-step ramp.
+ *
+ * This function cancels any pending timer event, disables the inverter outputs,
+ * and clears the internal ramp context. It can be called at any time, even if
+ * no ramp is currently active.
+ */
+void Service_Motor_OpenLoopRamp_Stop(void);
 
 
 /* -------------------------------------------------------------------------- */
@@ -328,6 +368,8 @@ typedef enum {
     CMD_SETSPEED     = 0x1001,
     CMD_STOP         = 0x1002,
     CMD_GETCURRENT   = 0x1003,
+    CMD_STARTRAMP    = 0x1004,
+    CMD_STOPRAMP     = 0x1005,
     // CMD_MOVE         = 0x100x,
     // CMD_TAKE_CONTROL = 0x100x,
 } project_cmd_t;
