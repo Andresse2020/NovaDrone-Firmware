@@ -34,8 +34,9 @@ control_status_t Control_Init(void);
 
 void control_start(void);
 void command_handler_debug_process(void);
-void start_motor(void);
 void control_test(void);
+
+void Control_Motor_Init(void);
 
 #ifdef __cplusplus
 }

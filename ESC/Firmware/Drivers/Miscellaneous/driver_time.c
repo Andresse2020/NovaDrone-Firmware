@@ -33,6 +33,10 @@ void DWT_Init(void)
 static bool Timer_init(void)
 {
     DWT_Init(); // Initialize DWT for cycle counting
+
+    if (HAL_TIM_Base_Start(&htim2) != HAL_OK)
+        return false; // Timer start failed
+
     return true; // Timer started successfully
 }
 
@@ -81,6 +85,16 @@ void HAL_Delay_ms(uint32_t ms)
     HAL_Delay(ms);
 }
 
+/**
+ * @brief Get the current time in microseconds using TIM2 counter.
+ * @return Current time in µs
+ */
+static uint32_t time_get_us(void)
+{
+    // 1 tick = 1 µs, 32-bit wraps at ~4294 s
+    return __HAL_TIM_GET_COUNTER(&htim2);
+}
+
 /* -------------------------------------------------------------------------- */
 /*                   Global time driver interface instance                    */
 /* -------------------------------------------------------------------------- */
@@ -96,7 +110,8 @@ i_time_t driver_time = {
     .getTick            = getTick,
     .delay_ms           = HAL_Delay_ms,
     .getSystemFrequency = GetSystemFrequency,
-    .delay_us           = DWT_delay_us
+    .delay_us           = DWT_delay_us,
+    .get_time_us        = time_get_us
 };
 
 /** Global pointer to the time driver instance */

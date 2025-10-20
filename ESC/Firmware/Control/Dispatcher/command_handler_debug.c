@@ -18,6 +18,7 @@
 #include "services.h"
 #include "frame_handler.h"
 #include "protocol.h"
+#include "bemf_monitor.h"
 
 /// Maximum frame buffer size
 #define FRAME_MAX_SIZE 64
@@ -274,7 +275,8 @@ static void dispatch_system_command(const protocol_msg_t* msg)
             uint32_t ramp_time_ms = (uint32_t)msg->args[0].value.i;
             bool cw = (msg->args[1].value.i != 0);
 
-            Service_Motor_OpenLoopRamp_Start(0.25f, 0.5f, 1.0f, 100.0f, ramp_time_ms, cw, RAMP_PROFILE_EXPONENTIAL, NULL, NULL);
+            SBemfMonitor->reset();
+            Service_Motor_OpenLoopRamp_Start(0.3f, 0.5f, 1.0f, 500.0f, ramp_time_ms, cw, RAMP_PROFILE_LINEAR, NULL, NULL);
             LOG_INFO("Motor ramp started: time=%lu ms, direction=%s", ramp_time_ms, cw ? "CW" : "CCW");
             break;
 

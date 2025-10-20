@@ -51,6 +51,12 @@ typedef struct
      */
     uint32_t (*getSystemFrequency)(void); // Get current tick in ms
 
+    /**
+     * @brief Get the current time in microseconds.
+     * @return Current time in µs
+     */
+    uint32_t (*get_time_us)(void);        // free-running µs counter
+
 } i_time_t;
 
 /**
