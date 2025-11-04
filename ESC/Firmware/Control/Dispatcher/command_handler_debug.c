@@ -21,6 +21,7 @@
 #include "service_bemf_monitor.h"
 #include "service_bldc_motor.h"
 #include "service_dc_motor.h"
+#include "control_six_step.h"
 
 /// Maximum frame buffer size
 #define FRAME_MAX_SIZE 64
@@ -134,7 +135,7 @@ static void dispatch_system_command(const protocol_msg_t* msg)
             break;
         }
 
-        case CMD_STATUS:
+        case CMD_INFO:
         {
             // Display system status including running time and system frequency
 
@@ -210,36 +211,34 @@ static void dispatch_system_command(const protocol_msg_t* msg)
         case CMD_SETSPEED:
         {
             // Check that the command has at least one argument
-            // and that this argument is a float.
-            if (msg->arg_count < 1 || msg->args[0].type != PROTOCOL_ARG_FLOAT) {
-                LOG_WARN("Usage: setspeed <duty_cycle>");
+            // and that this argument is an int.
+            if (msg->arg_count < 1 || msg->args[0].type != PROTOCOL_ARG_INT) {
+                LOG_WARN("Usage: setspeed <RPM>");
                 break;
             }
 
-            // Get the argument value as a float
-            float duty_cycle = msg->args[0].value.f;
-            char duty_str[16];
-            Service_FloatToString(duty_cycle, duty_str, 2);
+            // Get the argument value as an int
+            int RPM = msg->args[0].value.i;
 
-            // Validate the duty cycle range
-            if (duty_cycle < -1.0f || duty_cycle > 1.0f) {
-                LOG_WARN("Invalid duty cycle: %s. Must be between -1.0 and 1.0", duty_str);
+            // Validate the speed (RPM) range
+            if (RPM < -10000 || RPM > 10000) {
+                LOG_WARN("Invalid duty cycle: %d. Must be between -10000 and 10000", RPM);
                 break;
             }
 
-            // Command the motor with the specified duty cycle
-            Service_DC_Command_AB(duty_cycle);
+            // Command the motor with the specified speed (RPM)
+            Control_Motor_SetSpeed_RPM(RPM);
 
             // Confirm to the user that the speed was set
-            LOG_INFO("Motor commanded with duty cycle: %s", duty_str);
+            LOG_INFO("Motor commanded with speed of: %d", RPM);
             break;
         }
 
         case CMD_STOP:
         {
             // Stop the motor by setting duty cycle to zero
-            Service_DC_Command_AB(0.0f);
-            LOG_INFO("Motor stopped");
+            Control_Motor_Stop();
+            LOG_INFO("Motor stopped safely.");
             break;
         }
 
@@ -288,6 +287,18 @@ static void dispatch_system_command(const protocol_msg_t* msg)
         {
             Service_Motor_OpenLoopRamp_Stop();
             LOG_INFO("Motor ramp stopped");
+            break;
+        }
+
+        case CMD_STATUS:
+        {
+            Control_Motor_PrintStats();
+            break;
+        }
+
+        case CMD_GETSPEED:
+        {
+            LOG_INFO("Speed = %d RPM", (uint32_t) Control_Motor_GetTargetSpeed_RPM());
             break;
         }
 

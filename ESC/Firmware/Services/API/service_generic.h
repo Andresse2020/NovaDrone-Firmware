@@ -261,7 +261,8 @@ typedef enum {
     CMD_RESET       = 0x0003,   ///< Reset the system
     CMD_PING        = 0x0004,   ///< Ping / check alive
     CMD_STATUS      = 0x0005,   ///< General system status
-    CMD_CLEAR       = 0x0006    ///< Clear the terminal
+    CMD_CLEAR       = 0x0006,    ///< Clear the terminal
+    CMD_INFO        = 0x0007    ///< Get detailed system information
 } system_cmd_t;
 
 /// Logging / Debug commands
@@ -289,6 +290,7 @@ typedef enum {
     CMD_GETCURRENT   = 0x1003,
     CMD_STARTRAMP    = 0x1004,
     CMD_STOPRAMP     = 0x1005,
+    CMD_GETSPEED     = 0x1006,
     // CMD_MOVE         = 0x100x,
     // CMD_TAKE_CONTROL = 0x100x,
 } project_cmd_t;

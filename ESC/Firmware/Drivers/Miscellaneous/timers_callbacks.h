@@ -61,6 +61,14 @@ void Driver_OneShot_OnTimerExpired(TIM_HandleTypeDef *htim);
  */
 void Driver_FastLoop_OnTimerElapsed(TIM_HandleTypeDef *htim);
 
+/**
+ * @brief ISR entry point for the Low Loop driver.
+ *
+ * This function is responsible for handling the periodic Low Loop tick.
+ *
+ * @param htim Pointer to the HAL timer handle that triggered the interrupt.
+ */
+void Driver_LowLoop_OnTimerElapsed(TIM_HandleTypeDef *htim);
 
 
 #ifdef __cplusplus

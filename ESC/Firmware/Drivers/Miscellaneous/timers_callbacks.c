@@ -93,6 +93,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     /* === Dispatch to FastLoop Driver (future extension) ================== */
     Driver_FastLoop_OnTimerElapsed(htim);
 
+    /* === Dispatch to LowLoop Driver ==================================== */
+    Driver_LowLoop_OnTimerElapsed(htim);
+
     /* === Additional timer modules can be added here ====================== */
     // Example:
     // Driver_PwmSync_OnTimerElapsed(htim);

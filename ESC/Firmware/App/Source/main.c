@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "control.h"
+#include "control_six_step.h"
 
 /* -------------------------------------------------------------------------- */
 /* Main loop ---------------------------------------------------------------- */
@@ -12,7 +13,7 @@ int main(void)
     Control_Init();
 
     // Initialize motor control specific components
-    // Control_Motor_Init();
+    Control_Motor_Init();
     
     // Infinite main loop
     while (1)

@@ -1,22 +1,25 @@
 /**
  * @file service_fastloop.c
- * @brief Implementation of the Fast Loop Service (SFastLoop).
+ * @brief Implementation of the generic Loop Service for the Fast Loop (SFastLoop).
  *
- * This module provides a service-layer wrapper for the low-level Fast Loop driver.
- * It offers a unified API to the Control Layer, handling:
- *   - initialization of the underlying driver,
- *   - callback registration and execution at a fixed control frequency,
- *   - runtime profiling (execution time measurement),
- *   - and runtime statistics (tick count, average execution time).
+ * This module instantiates the generic Loop Service (`SLoop_t`) for the
+ * high-frequency control loop (typically 24 kHz).
  *
- * The service acts as a safe intermediary between the hardware timer interrupt
- * and the motor control logic. The Control Layer should always use this API
- * instead of directly accessing the driver-level IFastLoop interface.
+ * Responsibilities:
+ *   - Initialize the underlying Fast Loop driver (IFastLoop, TIM3-based)
+ *   - Register and execute user callbacks at fixed intervals (~41.6 µs)
+ *   - Measure runtime execution time for diagnostics
+ *   - Maintain runtime statistics (tick count, average duration, etc.)
+ *
+ * The Control Layer interacts exclusively through this service and never
+ * accesses hardware-level drivers directly.
+ *
+ * Target MCU: STM32G473CCTx
  */
 
 #include "service_loop.h"
-#include "i_fastloop.h" // Provides IFastLoop low-level driver interface
-#include "i_time.h"   // Provides ITime->get_time_us() for microsecond timing
+#include "i_periodic_loop.h"  // Provides IFastLoop driver interface
+#include "i_time.h"           // Provides ITime->get_time_us()
 #include <string.h>
 
 /* ========================================================================== */
@@ -24,67 +27,60 @@
 /* ========================================================================== */
 
 /**
- * @brief Internal context structure storing all runtime data related to
- *        the Fast Loop service.
+ * @brief Runtime context structure shared by all loop services.
  *
- * This includes the user callback (from the Control Layer) and various
- * runtime metrics for performance monitoring.
+ * Stores runtime statistics and the user callback pointer.
+ * One instance is created for each loop (Fast, Low, etc.).
  */
 typedef struct
 {
-    SFastLoop_Callback_t user_cb;   /**< Control-layer callback executed at each tick */
-    uint32_t tick_count;            /**< Total number of executed Fast Loop cycles */
-    uint32_t last_exec_us;          /**< Execution duration of last callback (µs) */
-    uint32_t avg_exec_us;           /**< Exponential moving average of execution time (µs) */
-    bool running;                   /**< True if the Fast Loop service is currently active */
-} sfastloop_ctx_t;
+    SLoop_Callback_t user_cb;   /**< Control-layer callback executed every tick */
+    uint32_t tick_count;        /**< Total number of executed loop cycles */
+    uint32_t last_exec_us;      /**< Duration of last callback (µs) */
+    uint32_t avg_exec_us;       /**< Exponential moving average of duration (µs) */
+    bool running;               /**< True if the loop service is currently active */
+} sloop_ctx_t;
 
-/** Global static context instance */
-static sfastloop_ctx_t s_ctx = {0};
+/** @brief Static instance of runtime context for the Fast Loop */
+static sloop_ctx_t s_ctx = {0};
 
 /**
- * @brief Reference to the underlying low-level driver (TIM3-based Fast Loop).
+ * @brief Reference to the underlying low-level driver (TIM3-based).
  *
- * This pointer is defined in the driver layer (driver_fastloop.c)
- * and exposes hardware-level control of the periodic timer interrupt.
+ * Defined in driver_fastloop.c and provides access to hardware-level control.
  */
-extern i_fastloop_t* IFastLoop;
+extern i_periodic_loop_t* IFastLoop;
 
 /* ========================================================================== */
-/* === Local Helper ======================================================== */
+/* === Local Helper Functions ============================================== */
 /* ========================================================================== */
 
 /**
- * @brief Internal trampoline function executed at each Fast Loop interrupt.
+ * @brief Internal trampoline executed at every Fast Loop tick (ISR context).
  *
- * This function is called by the driver through IFastLoop->register_callback().
- * It performs the following actions:
- *   1. Measures the execution time of the user callback in microseconds.
- *   2. Updates runtime statistics (tick counter, last and average duration).
- *   3. Calls the registered control-layer callback safely.
+ * This function wraps the control-layer callback to:
+ *   1. Measure its execution time in microseconds.
+ *   2. Update tick count and performance statistics.
+ *   3. Call the registered user callback.
  *
- * Note: This function runs in an ISR context — avoid blocking operations.
+ * @note Keep it minimal — it runs inside the interrupt service routine.
  */
 static void SFastLoop_Trampoline(void)
 {
-    /* Skip if no user callback is registered */
     if (s_ctx.user_cb == NULL)
         return;
 
-    /* Record start timestamp in microseconds */
     uint32_t start_us = ITime->get_time_us();
 
-    /* Execute control-layer callback (e.g., Motor_FastLoop) */
+    /* Execute the user callback (e.g., Motor_FastLoop) */
     s_ctx.user_cb();
 
-    /* Measure elapsed time and update statistics */
     uint32_t end_us = ITime->get_time_us();
-    uint32_t delta = end_us - start_us;  /* wrap-safe with 32-bit arithmetic */
+    uint32_t delta = end_us - start_us;
 
-    s_ctx.tick_count++;                  /* Increment total loop counter */
-    s_ctx.last_exec_us = delta;          /* Store duration of last execution */
-
-    /* Compute exponential moving average (EMA) for smoother readings */
+    /* Update runtime statistics */
+    s_ctx.tick_count++;
+    s_ctx.last_exec_us = delta;
     s_ctx.avg_exec_us = (uint32_t)(0.9f * s_ctx.avg_exec_us + 0.1f * delta);
 }
 
@@ -93,63 +89,58 @@ static void SFastLoop_Trampoline(void)
 /* ========================================================================== */
 
 /**
- * @brief Initialize the Fast Loop service and underlying driver.
+ * @brief Initialize the Fast Loop service and its driver.
  *
  * - Clears all runtime statistics and callback pointers.
- * - Initializes the low-level hardware driver (IFastLoop->init()).
- * - Registers the internal trampoline as the driver-level callback.
+ * - Initializes the underlying timer driver (TIM3).
+ * - Registers the internal trampoline callback.
  *
  * @retval true  Initialization successful.
- * @retval false Initialization failed (e.g., driver error).
+ * @retval false Driver initialization failed.
  */
 static bool SFL_Init(void)
 {
-    /* Reset context to known state */
     memset(&s_ctx, 0, sizeof(s_ctx));
 
-    /* Initialize low-level driver (e.g., TIM3) */
+    /* Initialize the hardware driver (TIM3-based Fast Loop) */
     if (!IFastLoop->init())
         return false;
 
-    /* Register internal trampoline to receive periodic events from driver */
+    /* Register the ISR trampoline with the low-level driver */
     IFastLoop->register_callback(SFastLoop_Trampoline);
+
     return true;
 }
 
 /**
- * @brief Register the user-defined callback executed at each Fast Loop cycle.
+ * @brief Register the user callback executed each loop cycle.
  *
- * @param cb Pointer to user callback function.
- *           Pass NULL to disable callback execution.
+ * @param cb Pointer to user callback (NULL disables callback).
  */
-static void SFL_RegisterCallback(SFastLoop_Callback_t cb)
+static void SFL_RegisterCallback(SLoop_Callback_t cb)
 {
     s_ctx.user_cb = cb;
 }
 
 /**
- * @brief Start the Fast Loop execution.
+ * @brief Start the periodic Fast Loop execution.
  *
- * - Resets runtime statistics.
- * - Enables periodic interrupts from the driver (IFastLoop->start()).
+ * Resets runtime statistics and enables the hardware timer interrupts.
  */
 static void SFL_Start(void)
 {
-    /* Reset statistics before starting */
     s_ctx.tick_count = 0;
     s_ctx.last_exec_us = 0;
     s_ctx.avg_exec_us = 0;
     s_ctx.running = true;
 
-    /* Start low-level periodic trigger */
     IFastLoop->start();
 }
 
 /**
- * @brief Stop the Fast Loop execution.
+ * @brief Stop the periodic Fast Loop execution.
  *
- * - Disables the periodic interrupt (IFastLoop->stop()).
- * - Keeps statistics for inspection until next start.
+ * Disables timer interrupts but preserves runtime statistics.
  */
 static void SFL_Stop(void)
 {
@@ -158,9 +149,9 @@ static void SFL_Stop(void)
 }
 
 /**
- * @brief Get the configured nominal Fast Loop frequency in Hz.
+ * @brief Retrieve the configured Fast Loop frequency in Hertz.
  *
- * @return Frequency in Hertz (e.g., 24000 for 24 kHz).
+ * @return Frequency in Hz (typically 24000 Hz).
  */
 static uint32_t SFL_GetFrequencyHz(void)
 {
@@ -168,13 +159,11 @@ static uint32_t SFL_GetFrequencyHz(void)
 }
 
 /**
- * @brief Retrieve runtime diagnostic statistics from the Fast Loop context.
+ * @brief Retrieve runtime diagnostic statistics.
  *
- * @param tick_count   Optional pointer to store total tick count.
- * @param last_exec_us Optional pointer to store last execution duration (µs).
- * @param avg_exec_us  Optional pointer to store averaged execution duration (µs).
- *
- * Pass NULL for any unused parameter.
+ * @param tick_count   Optional pointer to total tick count.
+ * @param last_exec_us Optional pointer to last execution duration (µs).
+ * @param avg_exec_us  Optional pointer to average execution duration (µs).
  */
 static void SFL_GetStats(uint32_t* tick_count,
                          uint32_t* last_exec_us,
@@ -186,16 +175,15 @@ static void SFL_GetStats(uint32_t* tick_count,
 }
 
 /* ========================================================================== */
-/* === Global Instance ===================================================== */
+/* === Global Service Instance ============================================ */
 /* ========================================================================== */
 
 /**
- * @brief Static structure implementing the Fast Loop service API.
+ * @brief Generic Loop Service instance for the Fast Loop.
  *
- * The structure members map to all SFastLoop_* function implementations.
- * This object is exposed globally through the pointer `SFastLoop`.
+ * Provides the same API as any `SLoop_t` instance.
  */
-static SFastLoop_t s_fastloop_iface = {
+static SLoop_t s_fastloop_iface = {
     .init              = SFL_Init,
     .register_callback = SFL_RegisterCallback,
     .start             = SFL_Start,
@@ -207,7 +195,8 @@ static SFastLoop_t s_fastloop_iface = {
 /**
  * @brief Global pointer to the Fast Loop Service instance.
  *
- * This is the main entry point for the Control Layer.
+ * Exposed to the Control Layer as the unified API for 24 kHz operations.
+ *
  * Example usage:
  * @code
  *     SFastLoop->init();
@@ -215,4 +204,4 @@ static SFastLoop_t s_fastloop_iface = {
  *     SFastLoop->start();
  * @endcode
  */
-SFastLoop_t* SFastLoop = &s_fastloop_iface;
+SLoop_t* SFastLoop = &s_fastloop_iface;
