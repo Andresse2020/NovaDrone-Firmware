@@ -222,7 +222,7 @@ static void dispatch_system_command(const protocol_msg_t* msg)
 
             // Validate the speed (RPM) range
             if (RPM < -10000 || RPM > 10000) {
-                LOG_WARN("Invalid duty cycle: %d. Must be between -10000 and 10000", RPM);
+                LOG_WARN("Invalid Speed: %d. Must be between -10000 and 10000", RPM);
                 break;
             }
 
@@ -230,7 +230,7 @@ static void dispatch_system_command(const protocol_msg_t* msg)
             Control_Motor_SetSpeed_RPM(RPM);
 
             // Confirm to the user that the speed was set
-            LOG_INFO("Motor commanded with speed of: %d", RPM);
+            LOG_INFO("Motor commanded with speed of: %d RPM", RPM);
             break;
         }
 
