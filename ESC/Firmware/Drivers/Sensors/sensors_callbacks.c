@@ -181,7 +181,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 
 /* Filter coefficients */
 #define IIR_ALPHA_CURRENT 5  // fc ≈ 238 Hz @ 24 kHz sampling
-#define IIR_ALPHA_VOLTAGE 3  // fc ≈ 952 Hz @ 24 kHz sampling
+#define IIR_ALPHA_VOLTAGE 1  // fc ≈ 3.8 kHz @ 24 kHz sampling
 
 /**
  * @brief Injected Conversion Complete Callback

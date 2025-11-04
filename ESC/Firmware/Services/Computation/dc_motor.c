@@ -10,9 +10,9 @@
  * Each pair can be used to test motor wiring or pre-FOC hardware validation.
  */
 
-#include "services.h"
-#include "i_inverter.h"
 #include <math.h>
+#include "service_dc_motor.h"
+#include "i_inverter.h"
 
 /* -------------------------------------------------------------------------- */
 /*                              Config constants                              */

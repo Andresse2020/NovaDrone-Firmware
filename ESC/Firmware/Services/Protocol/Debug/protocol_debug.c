@@ -13,8 +13,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#include "services.h"
-#include "protocol.h"
+#include "service_generic.h"
+#include "service_protocol.h"
 #include "i_comm.h"
 
 /* ------------------------------------------------------------------------- */

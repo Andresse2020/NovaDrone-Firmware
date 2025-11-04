@@ -74,6 +74,11 @@ typedef void (*bemf_get_status_t)(bemf_status_t *out_status);
  */
 typedef void (*bemf_clear_flag_t)(void);
 
+/**
+ * @brief Get timestamp (µs) of the last detected zero-crossing event.
+ */
+typedef uint32_t (*bemf_get_last_zc_time_us_t)(void);
+
 /* ---------------------------------------------------------------------------
  * Service Interface Structure
  * ------------------------------------------------------------------------- */
@@ -86,11 +91,12 @@ typedef void (*bemf_clear_flag_t)(void);
  */
 typedef struct
 {
-    bemf_init_t        init;        /**< Initialize the BEMF monitor */
-    bemf_reset_t       reset;       /**< Reset internal states (added) ✅ */
-    bemf_process_t     process;     /**< Process one fast-loop sample */
-    bemf_get_status_t  get_status;  /**< Retrieve last computed status */
-    bemf_clear_flag_t  clear_flag;  /**< Clear zero-cross flag */
+    bemf_init_t                init;                /**< Initialize the BEMF monitor */
+    bemf_reset_t               reset;               /**< Reset internal states (added) ✅ */
+    bemf_process_t             process;             /**< Process one fast-loop sample */
+    bemf_get_status_t          get_status;          /**< Retrieve last computed status */
+    bemf_clear_flag_t          clear_flag;          /**< Clear zero-cross flag */
+    bemf_get_last_zc_time_us_t get_last_zc_time_us; /**< Get last ZC timestamp */
 } s_bemf_monitor_t;
 
 /**

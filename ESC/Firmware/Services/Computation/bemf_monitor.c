@@ -2,247 +2,276 @@
  * @file service_bemf_monitor.c
  * @brief Back-EMF (BEMF) monitoring service implementation.
  *
- * This service estimates the electrical period and detects zero-crossings
- * of the motor back-EMF signal for sensorless BLDC control.
- * It runs at the fast-loop rate (e.g. 24 kHz) and provides filtered,
- * non-blocking BEMF data to the Control layer.
+ * This module estimates the electrical period and detects zero-crossings (ZC)
+ * of the back-EMF signal in a 3-phase sensorless BLDC motor.
+ *
+ * It operates inside the fast loop (e.g. 24 kHz) and provides the control layer
+ * with clean, validated and filtered zero-crossing events for commutation timing.
+ *
+ * ----------------------------
+ * Design Summary:
+ * ----------------------------
+ * - Computes BEMF = Vphase - Vneutral
+ * - Detects zero-crossings per phase (sign change)
+ * - Measures period between same-phase ZCs
+ * - Applies amplitude and period validation filters
+ * - Provides a smoothed (low-pass filtered) period estimate
+ * - Works independently for each phase (3x parallel trackers)
  *
  * Layer: Service (S)
- * Dependencies: Interface (i_motor_sensor, i_inverter, i_time)
+ * Dependencies: i_motor_sensor, i_inverter, i_time
  */
 
-#include "bemf_monitor.h"
-#include "i_motor_sensor.h"   // Provides IMotor_ADC_Measure for phase voltage sampling
-#include "i_inverter.h"       // Provides PHASE_A/B/C identifiers for low-level conversion
-#include "i_time.h"           // Provides ITime->get_time_us() for time measurement
+#include "service_bemf_monitor.h"
+#include "i_motor_sensor.h"
+#include "i_inverter.h"
+#include "i_time.h"
+#include "service_generic.h"
+
 #include <math.h>
 #include <string.h>
+#include <stdbool.h>
 
 /* ========================================================================== */
-/* === Static Variables ==================================================== */
+/* === Configuration Constants ============================================= */
 /* ========================================================================== */
 
-/* ==== Module-level persistent state (place these at file scope) ========= */
-static uint8_t s_valid_streak   = 0;     // count of consecutive valid ZC
-static uint8_t s_invalid_streak = 0;     // count of consecutive invalid ZC
-static bool    s_locked         = false; // validation state
-static float   s_last_period_us = 0.0f;  // filtered period for display
-static bool    s_bootstrap      = true;  // ignore first ZC period (baseline only)
+/** Minimum amplitude (in volts) required to consider a valid BEMF signal. */
+#define BEMF_MIN_AMPL_V        0.005f     /**< Reject noise below 5 mV. */
 
-/* ==== Tunable thresholds (calibrated for slow startup) ================== */
-#define BEMF_MIN_AMPL_V        0.005f      /* ~2 mV, permissive for startup   */
-#define BEMF_MIN_PERIOD_US     100.0f      /* reject extremely fast spikes     */
-#define BEMF_MAX_PERIOD_US     300000.0f   /* allow up to 300 ms (very slow)   */
-#define BEMF_LOCK_COUNT        2           /* #valid ZC before valid=1         */
-#define BEMF_UNLOCK_COUNT      5           /* #invalid ZC before valid=0       */
+/** Valid period bounds (in microseconds) to filter false zero-cross events. */
+#define BEMF_MIN_PERIOD_US     100.0f     /**< Reject extremely fast spikes. */
+#define BEMF_MAX_PERIOD_US     50000.0f   /**< Reject too-slow events (>50ms). */
 
-/** Current filtered BEMF status structure */
+/** Number of consecutive valid/invalid detections required to (un)lock. */
+#define BEMF_LOCK_COUNT        2          /**< Number of valid ZC to assert lock. */
+#define BEMF_UNLOCK_COUNT      5          /**< Number of invalid ZC to unlock. */
+
+/** Low-pass filter coefficient for period smoothing. */
+#define BEMF_FILTER_ALPHA      0.2f       /**< α = 0.2 → 20% new, 80% old. */
+
+/* ========================================================================== */
+/* === Module State ======================================================== */
+/* ========================================================================== */
+
+/** Global BEMF status structure (exported to control layer). */
 static bemf_status_t s_bemf_status;
 
-/** Previous computed BEMF value (for zero-cross detection) */
-static float s_prev_bemf = 0.0f;
+/** Previous BEMF voltage for sign detection, per phase. */
+static float s_prev_bemf[PHASE_COUNT] = {0.0f};
 
-/** Timestamp (in µs) of the last detected zero-cross */
+/** Timestamp (µs) of the last detected zero-cross. */
 static uint32_t s_last_zc_time_us = 0;
 
-/** True if the service has been initialized */
+/** Filtered (smoothed) period between ZC. */
+static float s_last_period_us = 0.0f;
+
+/** Bootstrap flag: true until first valid ZC is seen on each phase. */
+static bool s_bootstrap[PHASE_COUNT] = {true, true, true};
+
+/** Counters for lock validation logic. */
+static uint8_t s_valid_streak   = 0;  /**< Number of consecutive valid ZC. */
+static uint8_t s_invalid_streak = 0;  /**< Number of consecutive invalid ZC. */
+static bool    s_locked         = false; /**< True = BEMF signal considered valid. */
+
+/** Service state flag. */
 static bool s_initialized = false;
 
 /* ========================================================================== */
-/* === Internal Helpers ==================================================== */
+/* === Internal Helper Functions ========================================== */
 /* ========================================================================== */
 
 /**
- * @brief Convert raw ADC counts (0–4095) to voltage in volts.
- * @param raw Raw ADC sample (0–4095)
- * @return Converted voltage [V]
+ * @brief Convert raw ADC counts (0–4095) to voltage [V].
  */
 static inline float adc_to_voltage(uint16_t raw)
 {
-    return ((float)raw * 3.3f) / 4095.0f;  // Adjust if Vref != 3.3V
+    return ((float)raw * 3.3f) / 4095.0f;  // Assuming Vref = 3.3 V
 }
 
 /**
- * @brief Compute the virtual neutral voltage based on three phase voltages.
+ * @brief Compute virtual neutral point voltage.
+ * 
  * @param va Phase A voltage [V]
  * @param vb Phase B voltage [V]
  * @param vc Phase C voltage [V]
- * @return Computed neutral point voltage [V]
+ * @return Neutral voltage Vn = (Va + Vb + Vc) / 3
  */
 static inline float compute_neutral(float va, float vb, float vc)
 {
     return (va + vb + vc) / 3.0f;
 }
 
-/**
- * @brief Convert service-level motor phase to low-level inverter phase.
- * @param s_phase Phase identifier at service level
- * @return Corresponding hardware phase for inverter driver
- */
-static inline inverter_phase_t sphase_to_hwphase(s_motor_phase_t s_phase)
-{
-    switch (s_phase)
-    {
-        case S_MOTOR_PHASE_A: return PHASE_A;
-        case S_MOTOR_PHASE_B: return PHASE_B;
-        case S_MOTOR_PHASE_C: return PHASE_C;
-        default:              return PHASE_A;  // Safe fallback
-    }
-}
+/* ========================================================================== */
+/* === BEMF Processing Core =============================================== */
+/* ========================================================================== */
 
 /**
- * @brief Convert hardware-level inverter phase to service-level phase.
- * @param hw_phase Inverter driver phase identifier
- * @return Corresponding service-level phase identifier
+ * @brief Process one fast-loop iteration for BEMF monitoring.
+ *
+ * Called at the fast-loop frequency (typically 24 kHz).
+ * Each call measures the back-EMF of the *floating* phase (the one not driven
+ * in the current six-step commutation) and checks for a zero-cross event.
+ *
+ * When a zero-cross is detected:
+ *  - The time difference since the last ZC of the *same phase* is measured.
+ *  - The period is filtered (low-pass).
+ *  - A validation state ("locked") is maintained based on signal consistency.
+ *
+ * @param floating_phase Phase currently not driven (PHASE_A/B/C)
  */
-static inline s_motor_phase_t hwphase_to_sphase(inverter_phase_t hw_phase)
+static void BEMF_Process(uint8_t floating_phase)
 {
-    switch (hw_phase)
+    /* 1. Ensure service is ready */
+    if (!s_initialized || IMotor_ADC_Measure == NULL)
+        return;
+
+    /* 2. Read ADC measurements from interface */
+    motor_measurements_t meas;
+    if (!IMotor_ADC_Measure->get_latest_measurements(&meas))
+        return;
+
+    /* 3. Convert raw ADC samples to voltages */
+    float Va = adc_to_voltage(meas.v_phase_a_raw);
+    float Vb = adc_to_voltage(meas.v_phase_b_raw);
+    float Vc = adc_to_voltage(meas.v_phase_c_raw);
+    float Vn = compute_neutral(Va, Vb, Vc);
+
+    /* 4. Compute back-EMF for the floating phase */
+    float bemf = 0.0f;
+    switch (floating_phase)
     {
-        case PHASE_A: return S_MOTOR_PHASE_A;
-        case PHASE_B: return S_MOTOR_PHASE_B;
-        case PHASE_C: return S_MOTOR_PHASE_C;
-        default:      return S_MOTOR_PHASE_A;
+        case PHASE_A: bemf = Va - Vn; break;
+        case PHASE_B: bemf = Vb - Vn; break;
+        case PHASE_C: bemf = Vc - Vn; break;
+        default: return;
     }
+
+    /* 5. Detect zero-crossing: sign change in BEMF */
+    bool zc_detected = ((bemf >= 0.0f && s_prev_bemf[floating_phase] < 0.0f) ||
+                        (bemf < 0.0f && s_prev_bemf[floating_phase] >= 0.0f));
+
+    if (!zc_detected)
+    {
+        s_prev_bemf[floating_phase] = bemf;
+        return; // No event this cycle
+    }
+
+    /* 6. Reject very small oscillations (noise floor) */
+    if (fabsf(bemf) < BEMF_MIN_AMPL_V && fabsf(s_prev_bemf[floating_phase]) < BEMF_MIN_AMPL_V)
+    {
+        s_prev_bemf[floating_phase] = bemf;
+        return;
+    }
+
+    uint32_t now_us = ITime->get_time_us();
+
+    /* 7. Bootstrap logic — first ZC per phase initializes baseline */
+    if (s_bootstrap[floating_phase])
+    {
+        s_last_zc_time_us = now_us;
+        s_bootstrap[floating_phase] = false;
+
+        s_prev_bemf[floating_phase] = bemf;
+        s_bemf_status.zero_cross_detected = false;
+        s_bemf_status.valid = false;
+        return;
+    }
+
+    /* 8. Compute elapsed time since last ZC (from ANY phase), corresponding to 60° electrical */
+    float period_us = (float)(now_us - s_last_zc_time_us);
+    s_last_zc_time_us = now_us;
+
+    /* 9. Validate period range (reject spikes and dropouts) */
+    if (period_us < BEMF_MIN_PERIOD_US || period_us > BEMF_MAX_PERIOD_US)
+    {
+        if (s_invalid_streak < 255) s_invalid_streak++;
+        s_valid_streak = 0;
+
+        /* Too many invalids → unlock BEMF */
+        if (s_locked && s_invalid_streak >= BEMF_UNLOCK_COUNT)
+            s_locked = false;
+
+        s_bemf_status.zero_cross_detected = false;
+        s_bemf_status.valid = s_locked;
+        s_prev_bemf[floating_phase] = bemf;
+        return;
+    }
+
+    /* 10. Smooth the measured period with exponential filter */
+    if (s_last_period_us == 0.0f)
+        s_last_period_us = period_us;
+    else
+        s_last_period_us = (1.0f - BEMF_FILTER_ALPHA) * s_last_period_us + BEMF_FILTER_ALPHA * period_us;
+
+    /* 11. Lock/unlock logic */
+    if (s_valid_streak < 255) s_valid_streak++;
+    s_invalid_streak = 0;
+
+    if (!s_locked && s_valid_streak >= BEMF_LOCK_COUNT)
+        s_locked = true;
+
+    /* 12. Update shared BEMF status for control layer */
+    s_bemf_status.period_us = s_last_period_us;
+    s_bemf_status.floating_phase = floating_phase;
+    s_bemf_status.zero_cross_detected = true;
+    s_bemf_status.valid = s_locked;
+
+    /* 13. Store last BEMF value for next sign check */
+    s_prev_bemf[floating_phase] = bemf;
 }
 
 /* ========================================================================== */
-/* === Public Functions ==================================================== */
+/* === Service Management ================================================== */
 /* ========================================================================== */
 
 /**
  * @brief Initialize the BEMF monitoring service.
  *
- * This function resets all internal variables, timestamps, and flags.
- * It must be called once before using the service.
- *
- * @retval true Initialization successful
- * @retval false Should never occur (reserved for future checks)
+ * This must be called once before using the service. It resets all variables,
+ * clears filters, and sets bootstrap flags for all phases.
  */
 static bool BEMF_Init(void)
 {
     memset(&s_bemf_status, 0, sizeof(s_bemf_status));
-    s_prev_bemf = 0.0f;
-    s_last_zc_time_us = ITime->get_time_us();
+    memset(s_prev_bemf, 0, sizeof(s_prev_bemf));
+    memset(s_bootstrap, true, sizeof(s_bootstrap));
+
+    s_last_period_us = 0.0f;
+    s_last_zc_time_us = 0;
+    s_valid_streak = 0;
+    s_invalid_streak = 0;
+    s_locked = false;
     s_initialized = true;
+
     return true;
 }
 
 /**
- * @brief Process one new ADC sample and update the BEMF state.
+ * @brief Reset runtime state (used when restarting open-loop).
  *
- * This function must be called at the fast-loop frequency (e.g. 24 kHz).
- * It reads the latest phase voltages from the ADC interface, computes
- * the virtual neutral point, and evaluates the floating phase BEMF.
- *
- * When a zero-cross is detected (sign change of BEMF), the function:
- *  - Calculates the electrical period (µs),
- *  - Applies low-pass filtering for stability,
- *  - Flags the event for the Control layer.
- *
- * @param s_phase Floating phase currently not driven by PWM
+ * This clears filters and counters but keeps the service initialized.
  */
-static void BEMF_Process(uint8_t floating_phase)
+static void BEMF_Reset(void)
 {
-    if (!s_initialized || IMotor_ADC_Measure == NULL)
-        return;
+    memset(&s_bemf_status, 0, sizeof(s_bemf_status));
+    memset(s_prev_bemf, 0, sizeof(s_prev_bemf));
+    memset(s_bootstrap, true, sizeof(s_bootstrap));
 
-    motor_measurements_t meas;
-    if (!IMotor_ADC_Measure->get_latest_measurements(&meas))
-        return;
+    s_last_period_us = 0.0f;
+    s_last_zc_time_us = 0;
+    s_valid_streak = 0;
+    s_invalid_streak = 0;
+    s_locked = false;
 
-    /* Convert raw ADC to voltages */
-    float Va = adc_to_voltage(meas.v_phase_a_raw);
-    float Vb = adc_to_voltage(meas.v_phase_b_raw);
-    float Vc = adc_to_voltage(meas.v_phase_c_raw);
-    float Vn = (Va + Vb + Vc) / 3.0f;
-
-    /* Compute BEMF on floating phase */
-    float bemf = 0.0f;
-    switch (floating_phase)
-    {
-        case 0: bemf = Va - Vn; break;  // PHASE_A
-        case 1: bemf = Vb - Vn; break;  // PHASE_B
-        case 2: bemf = Vc - Vn; break;  // PHASE_C
-        default: return;
-    }
-
-    /* Zero-cross detection (sign change) */
-    bool zc_detected = ((bemf >= 0.0f && s_prev_bemf < 0.0f) ||
-                        (bemf < 0.0f && s_prev_bemf >= 0.0f));
-
-    if (zc_detected)
-    {
-        /* 1) Amplitude guard: reject tiny signals (noise) */
-        if (fabsf(bemf) < BEMF_MIN_AMPL_V && fabsf(s_prev_bemf) < BEMF_MIN_AMPL_V)
-        {
-            s_prev_bemf = bemf;
-            return;
-        }
-
-        uint32_t now_us = ITime->get_time_us();
-
-        /* 2) Bootstrap: first ZC only sets the baseline, no period computation */
-        if (s_bootstrap)
-        {
-            s_last_zc_time_us = now_us;       // establish baseline
-            s_bootstrap = false;
-            s_valid_streak = 0;
-            s_invalid_streak = 0;
-            s_bemf_status.zero_cross_detected = false; // no event to consume
-            s_bemf_status.valid = false;
-            s_prev_bemf = bemf;
-            return;
-        }
-
-        /* 3) Compute raw period since last accepted ZC */
-        float period_us = (float)(now_us - s_last_zc_time_us);
-
-        /* 4) Check raw period bounds */
-        if (period_us < BEMF_MIN_PERIOD_US || period_us > BEMF_MAX_PERIOD_US)
-        {
-            /* invalid ZC: increase invalid streak, maybe unlock */
-            if (s_invalid_streak < 255) s_invalid_streak++;
-            s_valid_streak = 0;
-
-            if (s_locked && s_invalid_streak >= BEMF_UNLOCK_COUNT)
-                s_locked = false;
-
-            s_bemf_status.zero_cross_detected = false;
-            s_bemf_status.valid = s_locked;
-            s_prev_bemf = bemf;
-            return;
-        }
-
-        /* 5) Accept this ZC: update timestamp baseline */
-        s_last_zc_time_us = now_us;
-
-        /* 6) Reset invalid streak and update filtered period */
-        s_invalid_streak = 0;
-        if (s_last_period_us == 0.0f)
-            s_last_period_us = period_us;
-        else
-            s_last_period_us = 0.9f * s_last_period_us + 0.1f * period_us;
-
-        s_bemf_status.period_us = s_last_period_us;
-        s_bemf_status.floating_phase = floating_phase;
-        s_bemf_status.zero_cross_detected = true;
-
-        /* 7) Lock-in logic */
-        if (s_valid_streak < 255) s_valid_streak++;
-        if (!s_locked && s_valid_streak >= BEMF_LOCK_COUNT)
-            s_locked = true;
-
-        s_bemf_status.valid = s_locked;
-    }
-
-    /* Remember for next sign-change test */
-    s_prev_bemf = bemf;
+    s_bemf_status.valid = false;
+    s_bemf_status.zero_cross_detected = false;
 }
 
 /**
  * @brief Retrieve the latest computed BEMF status.
- * @param out Pointer to destination structure
+ *
+ * @param out Pointer to destination structure.
  */
 static void BEMF_GetStatus(bemf_status_t* out)
 {
@@ -251,9 +280,7 @@ static void BEMF_GetStatus(bemf_status_t* out)
 }
 
 /**
- * @brief Clear the zero-cross flag after the event has been processed.
- *
- * This prevents the Control layer from reading the same event multiple times.
+ * @brief Clear the ZC flag after consumption by the control layer.
  */
 static void BEMF_ClearFlag(void)
 {
@@ -261,60 +288,27 @@ static void BEMF_ClearFlag(void)
 }
 
 /**
- * @brief Reset all BEMF internal states without reinitializing hardware.
- *
- * This function is used when restarting a new open-loop ramp,
- * to clear previous detection history and ensure a clean start.
- *
- * It preserves initialization and hardware configuration,
- * but clears dynamic runtime variables such as lock state, period,
- * and previous BEMF value.
+ * @brief Get timestamp (µs) of the last detected zero-crossing event.
  */
-static void BEMF_Reset(void)
+static uint32_t BEMF_GetLastZCTimeUs(void)
 {
-    memset(&s_bemf_status, 0, sizeof(s_bemf_status));
-
-    s_prev_bemf = 0.0f;
-    s_last_period_us = 0.0f;
-    s_last_zc_time_us = ITime->get_time_us();
-
-    s_valid_streak = 0;
-    s_invalid_streak = 0;
-    s_locked = false;
-    s_bootstrap = true;  // Force first ZC to establish baseline only
-
-    s_bemf_status.valid = false;
-    s_bemf_status.zero_cross_detected = false;
+    return s_last_zc_time_us;
 }
 
 
 /* ========================================================================== */
-/* === Global Service Interface ============================================ */
+/* === Global Service Instance ============================================ */
 /* ========================================================================== */
 
-/**
- * @brief Static instance of the BEMF service function table.
- *
- * This structure implements the service-level API defined in
- * service_bemf_monitor.h and is exposed through the SBemfMonitor pointer.
- */
+/** Static service descriptor instance. */
 static s_bemf_monitor_t s_bemf_service = {
-    .init       = BEMF_Init,
-    .reset      = BEMF_Reset,
-    .process    = BEMF_Process,
-    .get_status = BEMF_GetStatus,
-    .clear_flag = BEMF_ClearFlag,
+    .init                   =    BEMF_Init,
+    .reset                  =    BEMF_Reset,
+    .process                =    BEMF_Process,
+    .get_status             =    BEMF_GetStatus,
+    .clear_flag             =    BEMF_ClearFlag,
+    .get_last_zc_time_us    =    BEMF_GetLastZCTimeUs,
 };
 
-/**
- * @brief Global pointer to the BEMF monitoring service instance.
- *
- * Example usage (Control layer):
- * @code
- *     SBemfMonitor->init();
- *     SBemfMonitor->process(S_MOTOR_PHASE_A);
- *     bemf_status_t status;
- *     SBemfMonitor->get_status(&status);
- * @endcode
- */
+/** Public pointer to BEMF monitoring service. */
 s_bemf_monitor_t* SBemfMonitor = &s_bemf_service;

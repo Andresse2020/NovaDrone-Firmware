@@ -31,22 +31,6 @@ typedef enum {
 } log_level_t;
 
 /* -------------------------------------------------------------------------- */
-/*                     Motor Ramp Profile Types                               */
-/* -------------------------------------------------------------------------- */
-/**
- * @brief Available ramp profile types.
- */
-typedef enum
-{
-    RAMP_PROFILE_LINEAR = 0,       /**< Linear progression (default) */
-    RAMP_PROFILE_EXPONENTIAL,      /**< Exponential progression */
-    RAMP_PROFILE_QUADRATIC,        /**< Quadratic progression */
-    RAMP_PROFILE_LOGARITHMIC       /**< Logarithmic progression */
-} motor_ramp_profile_t;
-
-typedef void (*motor_ramp_callback_t)(void *user_ctx);
-
-/* -------------------------------------------------------------------------- */
 /*                          Public API                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -109,6 +93,16 @@ void Service_Test_OneShotTimer(void);
  * @param precision Number of digits after decimal point (e.g., 2 -> 1.23)
  */
 void Service_FloatToString(float value, char* str, uint8_t precision);
+
+/**
+ * @brief Get the current time in microseconds.
+ *
+ * This function retrieves the current free-running time counter
+ * in microseconds from the ITime interface.
+ *
+ * @return uint32_t Current time in microseconds.
+ */
+uint32_t Service_GetTimeUs(void);
 
 /**
  * @brief Get the system running time in seconds.
@@ -241,81 +235,6 @@ float Service_Get_PhaseB_Current(void);
 
 // Returns Phase C current in Amperes
 float Service_Get_PhaseC_Current(void);
-
-/**
- * @brief Command a DC motor between PHASE_A and PHASE_B.
- */
-void Service_DC_Command_AB(float duty);
-
-/**
- * @brief Command a DC motor between PHASE_B and PHASE_C.
- */
-void Service_DC_Command_BC(float duty);
-
-/**
- * @brief Command a DC motor between PHASE_C and PHASE_A.
- */
-void Service_DC_Command_CA(float duty);
-
-/**
- * @brief Stop all DC motor outputs (float all phases).
- */
-void Service_DC_StopAll(void);
-
-/**
- * @brief Align the rotor to a known position before startup (six-step method).
- *
- * This function energizes two motor phases to generate a static magnetic field
- * that aligns the rotor in a defined electrical position. It should be called
- * once before the open-loop acceleration phase.
- *
- * Typical sequence:
- *   1. Apply a DC voltage between two phases (e.g., A+ / B−, C floating).
- *   2. Wait several hundred milliseconds to allow rotor alignment.
- *
- * @param duty Alignment duty (0.0–1.0 normalized)
- * @param duration_ms Alignment duration in milliseconds
- */
-void Service_Motor_Align_Rotor(float duty, uint32_t duration_ms);
-
-/**
- * @brief Start an open-loop six-step ramp (event-driven, non-blocking).
- *
- * This function initializes the ramp context, performs the first commutation,
- * and schedules the next commutation step using the one-shot timer. The ramp
- * progresses automatically without blocking the CPU. When the ramp completes,
- * the optional user callback is invoked.
- *
- * @param duty_start     Starting duty (0.0–1.0)
- * @param duty_end       Final duty (0.0–1.0)
- * @param freq_start_hz  Starting electrical frequency (Hz)
- * @param freq_end_hz    Final electrical frequency (Hz)
- * @param ramp_time_ms   Total ramp duration in milliseconds
- * @param cw             true = clockwise, false = counterclockwise
- * @param profile_type   Ramp progression profile
- * @param on_complete    Optional callback called when ramp finishes (can be NULL)
- * @param user_ctx       User context pointer passed to the callback (can be NULL)
- */
-void Service_Motor_OpenLoopRamp_Start(
-    float duty_start,
-    float duty_end,
-    float freq_start_hz,
-    float freq_end_hz,
-    uint32_t ramp_time_ms,
-    bool cw,
-    motor_ramp_profile_t profile_type,
-    motor_ramp_callback_t on_complete,
-    void *user_ctx
-);
-
-/**
- * @brief Stop the ongoing open-loop six-step ramp.
- *
- * This function cancels any pending timer event, disables the inverter outputs,
- * and clears the internal ramp context. It can be called at any time, even if
- * no ramp is currently active.
- */
-void Service_Motor_OpenLoopRamp_Stop(void);
 
 
 /* -------------------------------------------------------------------------- */

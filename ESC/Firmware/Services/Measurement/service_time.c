@@ -1,4 +1,4 @@
-#include "services.h"
+#include "service_generic.h"
 #include "i_time.h"
 
 
@@ -62,4 +62,17 @@ uint32_t Service_GetSysFrequencyMHz(void)
 
     // Convert to MHz (integer division)
     return sys_freq_hz / 1000000U;
+}
+
+/**
+ * @brief Get the current time in microseconds.
+ *
+ * This function retrieves the current free-running time counter
+ * in microseconds from the ITime interface.
+ *
+ * @return uint32_t Current time in microseconds.
+ */
+uint32_t Service_GetTimeUs(void)
+{
+    return ITime->get_time_us();
 }

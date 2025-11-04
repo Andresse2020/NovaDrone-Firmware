@@ -1,5 +1,5 @@
 #include "control.h"
-#include "services.h"
+#include "service_generic.h"
 
 void control_start(void) {
     // Implement control processing logic here

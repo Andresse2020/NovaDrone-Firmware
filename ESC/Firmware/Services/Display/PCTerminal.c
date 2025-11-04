@@ -1,4 +1,4 @@
-#include "services.h"
+#include "service_generic.h"
 #include "i_comm.h"   // Communication interface (e.g. UART, USB, etc.)
 #include <stdio.h>
 #include <stdarg.h>

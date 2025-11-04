@@ -1,7 +1,10 @@
-#include "services.h"
+#include <math.h>
+#include <string.h>
+#include "service_bldc_motor.h"
 #include "i_inverter.h"
 #include "i_time_oneshot.h"
-#include <math.h>
+
+#include "i_time.h"
 
 /* === Step pattern structure ========================================== */
 typedef struct {
@@ -29,6 +32,76 @@ static const sixstep_pattern_t sixstep_table_ccw[6] = {
     {{STATE_PWM_HIGH, STATE_PWM_LOW,  STATE_HIZ}}
 };
 
+
+
+/* ============================================================================
+ * Internal timeout callback
+ * ========================================================================== */
+/**
+ * @brief Executed automatically after alignment duration expires.
+ *
+ * @param ctx Pointer to a function callback (void (*)(void)).
+ *
+ * This handler:
+ *  1. Disables all inverter outputs (safety).
+ *  2. Invokes the user callback if provided.
+ */
+static void Motor_Alignment_Timeout(void *ctx)
+{
+    /* Step 1: Disable inverter outputs */
+    IInverter->disable();
+
+    /* Step 2: Call user callback if provided */
+    if (ctx != NULL)
+    {
+        ((void (*)(void))ctx)(); 
+    }
+}
+
+/* ============================================================================
+ * Public API
+ * ========================================================================== */
+/**
+ * @brief Start non-blocking rotor alignment.
+ *
+ * @param duty              PWM duty cycle [0.0–1.0].
+ * @param duration_ms       Duration of alignment (milliseconds).
+ * @param on_alignment_done Callback called when alignment completes (nullable).
+ *
+ * @details
+ * Electrical configuration:
+ *   - Phase A: PWM high (current source)
+ *   - Phase B: Low (0% duty → low-side ON)
+ *   - Phase C: Floating (Hi-Z)
+ *
+ * After the alignment duration, the inverter is disabled and the callback
+ * is invoked if provided.
+ */
+void Service_Motor_Align_Rotor(float duty, uint32_t duration_ms, void (*on_alignment_done)(void))
+{
+    /* --- 1. Clamp input parameters --- */
+    if (duty < 0.0f) duty = 0.0f;
+    if (duty > 1.0f) duty = 1.0f;
+
+    /* --- 2. Apply static alignment vector --- */
+    inverter_duty_t duties = {
+        .phase_duty = {
+            duty,  /* Phase A = source */
+            0.0f,  /* Phase B = sink (low) */
+            0.0f   /* Phase C = floating */
+        }
+    };
+
+    IInverter->set_output_state(PHASE_A, STATE_PWM_ACTIVE);
+    IInverter->set_output_state(PHASE_B, STATE_PWM_ACTIVE);
+    IInverter->set_output_state(PHASE_C, STATE_HIZ);
+    IInverter->set_all_duties(&duties);
+
+    /* --- 3. Schedule automatic disable --- */
+    uint32_t duration_us = duration_ms * 1000U;
+
+    IOneShotTimer->start(duration_us, Motor_Alignment_Timeout, on_alignment_done);
+}
 
 /* === Main commutation function ======================================= */
 
@@ -200,6 +273,7 @@ static void Motor_Ramp_OnStepEvent(void *user_context)
     {
         ctx->active = false;
         IInverter->disable();   // Stop PWM safely
+        IOneShotTimer->cancel(); // Just in case
 
         // Notify application if callback is set
         if (ctx->on_complete)
@@ -258,6 +332,26 @@ static void Motor_Ramp_OnStepEvent(void *user_context)
     IOneShotTimer->start(next_step_us, Motor_Ramp_OnStepEvent, ctx);
 }
 
+/* ========================================================================== */
+/* === Function: Get Ramp State =========================================== */
+/* ========================================================================== */
+
+/**
+ * @brief Get the current ramp state (for transition to closed-loop).
+ *
+ * Allows the Control layer to read the latest ramp parameters without
+ * exposing internal variables like s_ramp_ctx.
+ *
+ * @param step_index     Pointer to receive the current commutation step
+ * @param duty           Pointer to receive the current duty cycle
+ * @param direction_cw   Pointer to receive the rotation direction
+ */
+void Service_Motor_OpenLoopRamp_GetState(uint8_t *step_index, float *duty, bool *direction_cw)
+{
+    if (step_index)    *step_index = s_ramp_ctx.step_index;
+    if (duty)          *duty = s_ramp_ctx.current_duty;
+    if (direction_cw)  *direction_cw = s_ramp_ctx.direction_cw;
+}
 
 /* ========================================================================== */
 /* === Function: Stop Open-Loop Ramp ====================================== */
@@ -282,6 +376,65 @@ void Service_Motor_OpenLoopRamp_Stop(void)
     IInverter->disable();
 
     // 3. Clear ramp context
+    memset(&s_ramp_ctx, 0, sizeof(s_ramp_ctx));
+    s_ramp_ctx.active = false;
+}
+
+/**
+ * @brief Stop the open-loop ramp WITHOUT disabling the inverter.
+ *
+ * Used when transitioning to closed-loop control.
+ */
+void Service_Motor_OpenLoopRamp_StopSoft(void)
+{
+    if (IOneShotTimer->isActive())
+        IOneShotTimer->cancel();
+
+    memset(&s_ramp_ctx, 0, sizeof(s_ramp_ctx));
+    s_ramp_ctx.active = false;
+}
+
+
+
+/* ========================================================================== */
+/* === Function: Schedule Commutation Event =============================== */
+/* ========================================================================== */
+
+/**
+ * @brief Schedule a six-step commutation event after a specified delay.
+ *
+ * This helper service uses the one-shot timer to schedule a callback after
+ * a given microsecond delay. It abstracts away the hardware timer interface
+ * from the Control layer.
+ *
+ * @param delay_us   Delay before triggering commutation (µs)
+ * @param callback   Function to call when the timer expires
+ * @param user_ctx   Optional user context (can be NULL)
+ */
+void Service_ScheduleCommutation(float delay_us, commutation_callback_t callback, void *user_ctx)
+{
+    if (callback == NULL)
+        return;
+
+    if (IOneShotTimer->isActive())
+        IOneShotTimer->cancel();
+
+    IOneShotTimer->start((uint32_t)delay_us, callback, user_ctx);
+}
+
+
+/* ========================================================================== */
+/* === Function: Stop Motor =============================================== */
+/* ========================================================================== */
+
+/**
+ * @brief Stop the motor by disabling the inverter and cancelling timers.
+ */
+void Service_Motor_Stop(void)
+{
+    IInverter->disable();
+    IOneShotTimer->cancel();
+
     memset(&s_ramp_ctx, 0, sizeof(s_ramp_ctx));
     s_ramp_ctx.active = false;
 }

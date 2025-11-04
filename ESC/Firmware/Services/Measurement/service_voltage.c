@@ -1,4 +1,4 @@
-#include "services.h"
+#include "service_generic.h"
 #include "i_voltage_sensor.h"
 
 

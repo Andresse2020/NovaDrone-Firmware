@@ -73,7 +73,6 @@ typedef struct
 
 } i_frame_handler_t;
 
-#include "frame_handler.h"
 
 extern const i_frame_handler_t* DBFrameHandler;
 

@@ -15,10 +15,12 @@
  *  - Extensible: additional command categories can be added with separate dispatch functions.
  */
 
-#include "services.h"
-#include "frame_handler.h"
-#include "protocol.h"
-#include "bemf_monitor.h"
+#include "service_generic.h"
+#include "service_frame_handler.h"
+#include "service_protocol.h"
+#include "service_bemf_monitor.h"
+#include "service_bldc_motor.h"
+#include "service_dc_motor.h"
 
 /// Maximum frame buffer size
 #define FRAME_MAX_SIZE 64

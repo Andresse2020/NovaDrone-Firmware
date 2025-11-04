@@ -1,4 +1,4 @@
-#include "services.h"
+#include "service_generic.h"
 #include "i_temperature_sensor.h"
 
 
