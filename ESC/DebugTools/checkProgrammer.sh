@@ -11,7 +11,7 @@ TARGET_CFG="stm32f4x.cfg"
 TARGET_CPU="stm32f4x.cpu"
 
 # Step 1: Check if ST-LINK is connected via USB
-if lsusb | grep -q "0483:374b"; then
+if lsusb | grep -q "STLINK-V3"; then
     echo "✅ ST-LINK detected on USB."
 else
     echo "❌ Programmer not detected (USB)."

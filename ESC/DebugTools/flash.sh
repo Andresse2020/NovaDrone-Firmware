@@ -2,6 +2,12 @@
 set -e  # Stop script immediately if any command fails
 
 # ==============================
+# Exemple of use
+# ==============================
+# flash <file_name>
+# flash firmware
+
+# ==============================
 # 📂 Paths Configuration
 # ==============================
 # Determine the root directory of the project relative to this script
@@ -114,8 +120,8 @@ echo ""
 # ==============================
 echo "🔍 Checking programmer and MCU..."
 # Verify ST-LINK is connected via USB
-if lsusb | grep -q "ST-LINK"; then
-    echo "✅ ST-LINK detected on USB."
+if lsusb | grep -q "STLINK-V3"; then
+    echo "✅ STLINK-V3 detected on USB."
 else
     echo "❌ No ST-LINK found. Please connect your programmer."
     exit 1
